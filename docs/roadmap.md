@@ -22,8 +22,8 @@
 - [x] Create sandbox/docker-compose.yml (network isolation, resource limits)
 
 ## Phase 2: Tier 1 Evaluations
-- [ ] Clone + review Official SDK (hyperliquid-python-sdk) as reference baseline
-- [ ] Clone + audit Chainstack Grid Bot
+- [x] Clone + review Official SDK (hyperliquid-python-sdk) as reference baseline
+- [x] Clone + audit Chainstack Grid Bot
 - [ ] Clone + audit Passivbot
 - [ ] Clone + audit Hummingbot (HL connector only)
 - [ ] Complete evaluation scorecards for all Tier 1 bots

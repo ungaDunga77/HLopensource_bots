@@ -6,7 +6,7 @@
 |---|------|------|------|----------|------|--------|
 | 1 | Passivbot | enarjord/passivbot | Python/Rust | Market-making, contrarian grid | 1 | Not started |
 | 2 | Hummingbot | hummingbot/hummingbot | Python | Market-making platform | 1 | Not started |
-| 3 | Chainstack Grid Bot | chainstacklabs/hyperliquid-trading-bot | Python | YAML grid trading | 1 | Not started |
+| 3 | Chainstack Grid Bot | chainstacklabs/hyperliquid-trading-bot | Python | YAML grid trading | 1 | **3.60** |
 | 4 | HyperLiquidAlgoBot | SimSimButDifferent/HyperLiquidAlgoBot | JS/Python | Bollinger+RSI+ADX, ML | 2 | Not started |
 | 5 | Copy Trader | MaxIsOntoSomething/Hyperliquid_Copy_Trader | Python | WebSocket copy trading | 2 | Not started |
 | 6 | Copy Trading Bot | gamma-trade-lab/Hyperliquid-Copy-Trading-Bot | TS/Node | Copy trading w/ risk params | 2 | Not started |
@@ -23,7 +23,7 @@
 | 17 | Rust Bot (0xTan) | 0xTan1319/hyperliquid-trading-bot-rust | Rust | Automated trading | 3 | Not started |
 | 18 | Telegram Info Bot | aggstam/telegram-bot-hyperliquid | Python | Info retrieval (not trading) | 3 | Not started |
 
-**Reference**: hyperliquid-dex/hyperliquid-python-sdk (official SDK, baseline)
+**Reference**: hyperliquid-dex/hyperliquid-python-sdk (official SDK, baseline) — **Evaluated 2026-03-29** | Stars: 1,489 | Forks: 512 | MIT | v0.22.0 (Feb 2026) | Score: 3.73
 
 ---
 
