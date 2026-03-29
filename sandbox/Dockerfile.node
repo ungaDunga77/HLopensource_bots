@@ -1,0 +1,35 @@
+# Sandbox for Node.js-based trading bots
+# Build with: docker build --build-arg BOT_PATH=bots/<name> -f sandbox/Dockerfile.node -t bot-<name> .
+# Build with no network: docker build --network=none --build-arg BOT_PATH=bots/<name> -f sandbox/Dockerfile.node -t bot-<name> .
+
+FROM node:20-slim
+
+# Non-root user
+RUN useradd --create-home --shell /bin/bash botuser
+
+WORKDIR /app
+
+# Copy bot source
+ARG BOT_PATH
+COPY ${BOT_PATH} /app/
+
+# Install deps WITHOUT running lifecycle scripts (prevents postinstall attacks)
+RUN if [ -f package.json ]; then \
+        npm install --ignore-scripts --no-audit; \
+    fi
+
+# Compile TypeScript if tsconfig exists
+RUN if [ -f tsconfig.json ]; then \
+        npx tsc --noEmit || true; \
+    fi
+
+# Drop to non-root
+USER botuser
+
+# Default: run tests if defined, otherwise start shell
+CMD if [ -f package.json ] && node -e "const p=require('./package.json'); process.exit(p.scripts && p.scripts.test ? 0 : 1)"; then \
+        npm test; \
+    else \
+        echo "No tests found. Starting shell."; \
+        /bin/bash; \
+    fi

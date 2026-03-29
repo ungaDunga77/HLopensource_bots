@@ -1,0 +1,39 @@
+# Sandbox for Python-based trading bots
+# Build with: docker build --build-arg BOT_PATH=bots/<name> -f sandbox/Dockerfile.python -t bot-<name> .
+# Build with no network: docker build --network=none --build-arg BOT_PATH=bots/<name> -f sandbox/Dockerfile.python -t bot-<name> .
+
+FROM python:3.12-slim
+
+# Build deps for C extensions (numpy, pandas, etc.)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gcc g++ && \
+    rm -rf /var/lib/apt/lists/*
+
+# Non-root user
+RUN useradd --create-home --shell /bin/bash botuser
+
+WORKDIR /app
+
+# Copy bot source
+ARG BOT_PATH
+COPY ${BOT_PATH} /app/
+
+# Install dependencies if requirements.txt exists
+RUN if [ -f requirements.txt ]; then \
+        pip install --no-cache-dir -r requirements.txt; \
+    elif [ -f setup.py ]; then \
+        pip install --no-cache-dir -e .; \
+    elif [ -f pyproject.toml ]; then \
+        pip install --no-cache-dir .; \
+    fi
+
+# Drop to non-root
+USER botuser
+
+# Default: run tests if they exist, otherwise start shell
+CMD if [ -d tests ] || [ -f pytest.ini ] || [ -f setup.cfg ]; then \
+        python -m pytest -v; \
+    else \
+        echo "No tests found. Starting shell."; \
+        /bin/bash; \
+    fi

@@ -28,7 +28,31 @@ pip install -r requirements.txt
 - `evaluations/` — Scored results per bot (version controlled)
 - `evaluations/_template/` — Blank scoring template
 - `tools/` — Audit and scanning scripts
+  - `clone_bot.sh` — Clone + two-stage secret gate
+  - `scan_secrets.py` — Secret scanner (regex + detect-secrets + trufflehog)
+  - `audit_deps.py` — Dependency auditor (auto-detects Python/Node/Rust)
 - `sandbox/` — Docker configs for isolated testing
+  - `Dockerfile.{python,node,rust}` — Per-language sandboxes
+  - `docker-compose.yml` — Isolated (Phase 3) and testnet (Phase 4) profiles
+
+## Tool Usage
+
+```bash
+# Clone and scan a bot (two-stage secret gate)
+./tools/clone_bot.sh <repo-url> <bot-name>
+
+# Run secret scan independently
+python tools/scan_secrets.py bots/<name>/ [--format json|markdown]
+
+# Run dependency audit
+python tools/audit_deps.py bots/<name>/ [--format json|markdown]
+
+# Build + test in Docker (Phase 3, isolated network)
+BOT_NAME=<name> BOT_PATH=bots/<name> docker compose -f sandbox/docker-compose.yml run bot-test-python
+
+# Testnet trial (Phase 4, bridge network)
+BOT_NAME=<name> BOT_PATH=bots/<name> docker compose -f sandbox/docker-compose.yml --profile testnet run bot-testnet-python
+```
 
 ## Rules
 

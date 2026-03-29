@@ -8,18 +8,18 @@
 - [x] Write testing workflow (docs/testing-workflow.md)
 - [x] Create evaluation template (evaluations/_template/)
 - [x] Rewrite CLAUDE.md as lean hub
-- [ ] Create .env.example for testnet keys
+- [x] Create .env.example for testnet keys
 
 ## Phase 1: Security Tooling
-- [ ] Install audit tools into venv (pip-audit, safety, trufflehog, detect-secrets)
-- [ ] Write tools/clone_bot.sh (standardized clone + initial scan)
-- [ ] Write tools/scan_secrets.py (secret scanner wrapper)
-- [ ] Write tools/audit_deps.py (dependency auditor, auto-detects project type)
-- [ ] Write requirements.txt
-- [ ] Create sandbox/Dockerfile.python
-- [ ] Create sandbox/Dockerfile.node
-- [ ] Create sandbox/Dockerfile.rust
-- [ ] Create sandbox/docker-compose.yml (network isolation, resource limits)
+- [x] Install audit tools into venv (pip-audit, safety, trufflehog, detect-secrets)
+- [x] Write tools/clone_bot.sh (standardized clone + initial scan)
+- [x] Write tools/scan_secrets.py (secret scanner wrapper)
+- [x] Write tools/audit_deps.py (dependency auditor, auto-detects project type)
+- [x] Write requirements.txt
+- [x] Create sandbox/Dockerfile.python
+- [x] Create sandbox/Dockerfile.node
+- [x] Create sandbox/Dockerfile.rust
+- [x] Create sandbox/docker-compose.yml (network isolation, resource limits)
 
 ## Phase 2: Tier 1 Evaluations
 - [ ] Clone + review Official SDK (hyperliquid-python-sdk) as reference baseline

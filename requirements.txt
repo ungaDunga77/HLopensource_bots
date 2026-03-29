@@ -1,0 +1,5 @@
+# Security audit tools for bot evaluation
+pip-audit>=2.7.0
+safety>=3.0.0
+detect-secrets>=1.4.0
+trufflehog>=2.2.1

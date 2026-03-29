@@ -1,0 +1,29 @@
+# Sandbox for Rust-based trading bots
+# Build with: docker build --build-arg BOT_PATH=bots/<name> -f sandbox/Dockerfile.rust -t bot-<name> .
+# Build with no network: docker build --network=none --build-arg BOT_PATH=bots/<name> -f sandbox/Dockerfile.rust -t bot-<name> .
+
+FROM rust:1.82-slim
+
+# Install cargo-audit for vulnerability scanning
+RUN cargo install cargo-audit
+
+# Non-root user
+RUN useradd --create-home --shell /bin/bash botuser
+
+WORKDIR /app
+
+# Copy bot source
+ARG BOT_PATH
+COPY ${BOT_PATH} /app/
+
+# Build the project
+RUN cargo build 2>&1 || true
+
+# Run cargo audit inside the container (has full toolchain)
+RUN cargo audit 2>&1 || true
+
+# Drop to non-root
+USER botuser
+
+# Default: run tests
+CMD ["cargo", "test"]
