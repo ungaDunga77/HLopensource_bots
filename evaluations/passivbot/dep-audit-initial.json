@@ -1,0 +1,220 @@
+{
+  "target": "bots/passivbot",
+  "languages": [
+    "python"
+  ],
+  "vulnerability_count": 30,
+  "has_critical": false,
+  "findings": [
+    {
+      "severity": "MEDIUM",
+      "category": "vulnerability",
+      "package": "pymdown-extensions",
+      "description": "[pip-audit] CVE-2025-68142: ### Impact  This issue describes a ReDOS bug found within the figure caption extension (`pymdownx.blocks.caption` ).  In systems that take unchecked user content, this could cause long hangs when proc",
+      "details": "Installed: 10.8.1, Fix: 10.16.1"
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "vulnerability",
+      "package": "aiohttp",
+      "description": "[pip-audit] CVE-2025-69223: ### Summary A zip bomb can be used to execute a DoS against the aiohttp server.  ### Impact An attacker may be able to send a compressed request that when decompressed by aiohttp could exhaust the hos",
+      "details": "Installed: 3.13.1, Fix: 3.13.3"
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "vulnerability",
+      "package": "aiohttp",
+      "description": "[pip-audit] CVE-2025-69224: ### Summary The Python HTTP parser may allow a request smuggling attack with the presence of non-ASCII characters.  ### Impact If a pure Python version of aiohttp is installed (i.e. without the usual ",
+      "details": "Installed: 3.13.1, Fix: 3.13.3"
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "vulnerability",
+      "package": "aiohttp",
+      "description": "[pip-audit] CVE-2025-69228: ### Summary A request can be crafted in such a way that an aiohttp server's memory fills up uncontrollably during processing.  ### Impact If an application includes a handler that uses the `Request.po",
+      "details": "Installed: 3.13.1, Fix: 3.13.3"
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "vulnerability",
+      "package": "aiohttp",
+      "description": "[pip-audit] CVE-2025-69229: ### Summary  Handling of chunked messages can result in excessive blocking CPU usage when receiving a large number of chunks.  ### Impact  If an application makes use of the `request.read()` method in",
+      "details": "Installed: 3.13.1, Fix: 3.13.3"
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "vulnerability",
+      "package": "aiohttp",
+      "description": "[pip-audit] CVE-2025-69230: ### Summary Reading multiple invalid cookies can lead to a logging storm.  ### Impact If the ``cookies`` attribute is accessed in an application, then an attacker may be able to trigger a storm of war",
+      "details": "Installed: 3.13.1, Fix: 3.13.3"
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "vulnerability",
+      "package": "aiohttp",
+      "description": "[pip-audit] CVE-2025-69226: ### Summary Path normalization for static files prevents path traversal, but opens up the ability for an attacker to ascertain the existence of absolute path components.  ### Impact If an application ",
+      "details": "Installed: 3.13.1, Fix: 3.13.3"
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "vulnerability",
+      "package": "aiohttp",
+      "description": "[pip-audit] CVE-2025-69227: ### Summary When assert statements are bypassed, an infinite loop can occur, resulting in a DoS attack when processing a POST body.  ### Impact If optimisations are enabled (`-O` or `PYTHONOPTIMIZE=1`",
+      "details": "Installed: 3.13.1, Fix: 3.13.3"
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "vulnerability",
+      "package": "aiohttp",
+      "description": "[pip-audit] CVE-2025-69225: ### Summary  The parser allows non-ASCII decimals to be present in the Range header.  ### Impact  There is no known impact, but there is the possibility that there's a method to exploit a request smug",
+      "details": "Installed: 3.13.1, Fix: 3.13.3"
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "vulnerability",
+      "package": "requests",
+      "description": "[pip-audit] CVE-2024-47081: ### Impact  Due to a URL parsing issue, Requests releases prior to 2.32.4 may leak .netrc credentials to third parties for specific maliciously-crafted URLs.  ### Workarounds For older versions of Req",
+      "details": "Installed: 2.32.3, Fix: 2.32.4"
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "vulnerability",
+      "package": "requests",
+      "description": "[pip-audit] CVE-2026-25645: ### Impact The `requests.utils.extract_zipped_paths()` utility function uses a predictable filename when extracting files from zip archives into the system temporary directory. If the target file alre",
+      "details": "Installed: 2.32.3, Fix: 2.33.0"
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "vulnerability",
+      "package": "pymdown-extensions",
+      "description": "[pip-audit] CVE-2025-68142: ### Impact  This issue describes a ReDOS bug found within the figure caption extension (`pymdownx.blocks.caption` ).  In systems that take unchecked user content, this could cause long hangs when proc",
+      "details": "Installed: 10.8.1, Fix: 10.16.1"
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "vulnerability",
+      "package": "flask",
+      "description": "[pip-audit] CVE-2026-27205: When the `session` object is accessed, Flask should set the `Vary: Cookie` header. This instructs caches not to cache the response, as it may contain information specific to a logged in user. This is ",
+      "details": "Installed: 3.0.3, Fix: 3.1.3"
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "vulnerability",
+      "package": "werkzeug",
+      "description": "[pip-audit] CVE-2025-66221: Werkzeug's `safe_join` function allows path segments with Windows device names. On Windows, there are special device names such as `CON`, `AUX`, etc that are implicitly present and readable in every d",
+      "details": "Installed: 3.0.6, Fix: 3.1.4"
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "vulnerability",
+      "package": "werkzeug",
+      "description": "[pip-audit] CVE-2026-21860: Werkzeug's `safe_join` function allows path segments with Windows device names that have file extensions or trailing spaces. On Windows, there are special device names such as `CON`, `AUX`, etc that a",
+      "details": "Installed: 3.0.6, Fix: 3.1.5"
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "vulnerability",
+      "package": "werkzeug",
+      "description": "[pip-audit] CVE-2026-27199: Werkzeug's `safe_join` function allows Windows device names as filenames if when preceded by other path segments.  This was previously reported as https://github.com/pallets/werkzeug/security/advisori",
+      "details": "Installed: 3.0.6, Fix: 3.1.6"
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "vulnerability",
+      "package": "aiohttp",
+      "description": "[pip-audit] CVE-2025-69223: ### Summary A zip bomb can be used to execute a DoS against the aiohttp server.  ### Impact An attacker may be able to send a compressed request that when decompressed by aiohttp could exhaust the hos",
+      "details": "Installed: 3.13.1, Fix: 3.13.3"
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "vulnerability",
+      "package": "aiohttp",
+      "description": "[pip-audit] CVE-2025-69224: ### Summary The Python HTTP parser may allow a request smuggling attack with the presence of non-ASCII characters.  ### Impact If a pure Python version of aiohttp is installed (i.e. without the usual ",
+      "details": "Installed: 3.13.1, Fix: 3.13.3"
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "vulnerability",
+      "package": "aiohttp",
+      "description": "[pip-audit] CVE-2025-69228: ### Summary A request can be crafted in such a way that an aiohttp server's memory fills up uncontrollably during processing.  ### Impact If an application includes a handler that uses the `Request.po",
+      "details": "Installed: 3.13.1, Fix: 3.13.3"
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "vulnerability",
+      "package": "aiohttp",
+      "description": "[pip-audit] CVE-2025-69229: ### Summary  Handling of chunked messages can result in excessive blocking CPU usage when receiving a large number of chunks.  ### Impact  If an application makes use of the `request.read()` method in",
+      "details": "Installed: 3.13.1, Fix: 3.13.3"
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "vulnerability",
+      "package": "aiohttp",
+      "description": "[pip-audit] CVE-2025-69230: ### Summary Reading multiple invalid cookies can lead to a logging storm.  ### Impact If the ``cookies`` attribute is accessed in an application, then an attacker may be able to trigger a storm of war",
+      "details": "Installed: 3.13.1, Fix: 3.13.3"
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "vulnerability",
+      "package": "aiohttp",
+      "description": "[pip-audit] CVE-2025-69226: ### Summary Path normalization for static files prevents path traversal, but opens up the ability for an attacker to ascertain the existence of absolute path components.  ### Impact If an application ",
+      "details": "Installed: 3.13.1, Fix: 3.13.3"
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "vulnerability",
+      "package": "aiohttp",
+      "description": "[pip-audit] CVE-2025-69227: ### Summary When assert statements are bypassed, an infinite loop can occur, resulting in a DoS attack when processing a POST body.  ### Impact If optimisations are enabled (`-O` or `PYTHONOPTIMIZE=1`",
+      "details": "Installed: 3.13.1, Fix: 3.13.3"
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "vulnerability",
+      "package": "aiohttp",
+      "description": "[pip-audit] CVE-2025-69225: ### Summary  The parser allows non-ASCII decimals to be present in the Range header.  ### Impact  There is no known impact, but there is the possibility that there's a method to exploit a request smug",
+      "details": "Installed: 3.13.1, Fix: 3.13.3"
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "vulnerability",
+      "package": "requests",
+      "description": "[pip-audit] CVE-2024-47081: ### Impact  Due to a URL parsing issue, Requests releases prior to 2.32.4 may leak .netrc credentials to third parties for specific maliciously-crafted URLs.  ### Workarounds For older versions of Req",
+      "details": "Installed: 2.32.3, Fix: 2.32.4"
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "vulnerability",
+      "package": "requests",
+      "description": "[pip-audit] CVE-2026-25645: ### Impact The `requests.utils.extract_zipped_paths()` utility function uses a predictable filename when extracting files from zip archives into the system temporary directory. If the target file alre",
+      "details": "Installed: 2.32.3, Fix: 2.33.0"
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "vulnerability",
+      "package": "flask",
+      "description": "[pip-audit] CVE-2026-27205: When the `session` object is accessed, Flask should set the `Vary: Cookie` header. This instructs caches not to cache the response, as it may contain information specific to a logged in user. This is ",
+      "details": "Installed: 3.0.3, Fix: 3.1.3"
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "vulnerability",
+      "package": "werkzeug",
+      "description": "[pip-audit] CVE-2025-66221: Werkzeug's `safe_join` function allows path segments with Windows device names. On Windows, there are special device names such as `CON`, `AUX`, etc that are implicitly present and readable in every d",
+      "details": "Installed: 3.0.6, Fix: 3.1.4"
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "vulnerability",
+      "package": "werkzeug",
+      "description": "[pip-audit] CVE-2026-21860: Werkzeug's `safe_join` function allows path segments with Windows device names that have file extensions or trailing spaces. On Windows, there are special device names such as `CON`, `AUX`, etc that a",
+      "details": "Installed: 3.0.6, Fix: 3.1.5"
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "vulnerability",
+      "package": "werkzeug",
+      "description": "[pip-audit] CVE-2026-27199: Werkzeug's `safe_join` function allows Windows device names as filenames if when preceded by other path segments.  This was previously reported as https://github.com/pallets/werkzeug/security/advisori",
+      "details": "Installed: 3.0.6, Fix: 3.1.6"
+    }
+  ]
+}

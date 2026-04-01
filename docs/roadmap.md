@@ -24,7 +24,7 @@
 ## Phase 2: Tier 1 Evaluations
 - [x] Clone + review Official SDK (hyperliquid-python-sdk) as reference baseline
 - [x] Clone + audit Chainstack Grid Bot
-- [ ] Clone + audit Passivbot
+- [x] Clone + audit Passivbot
 - [ ] Clone + audit Hummingbot (HL connector only)
 - [ ] Complete evaluation scorecards for all Tier 1 bots
 

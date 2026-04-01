@@ -1,0 +1,46 @@
+# Sandbox for Passivbot (Python + Rust)
+# Combines Passivbot's build requirements with our security hardening
+# Build: docker build --build-arg BOT_PATH=bots/passivbot -f sandbox/Dockerfile.passivbot -t bot-passivbot ..
+
+FROM python:3.12-slim-bookworm
+
+ENV DEBIAN_FRONTEND=noninteractive
+ENV SKIP_RUST_COMPILE=true
+
+# System build dependencies (Passivbot needs Rust + C toolchain)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential python3-dev pkg-config libssl-dev curl git \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Rust toolchain
+RUN curl https://sh.rustup.rs -sSf | sh -s -- -y
+ENV PATH="/root/.cargo/bin:${PATH}"
+
+# Non-root user (our security addition)
+RUN useradd --create-home --shell /bin/bash botuser
+
+WORKDIR /app
+
+# Copy bot source
+ARG BOT_PATH
+COPY ${BOT_PATH} /app/
+
+# Install Python deps (live + full for testing, includes maturin)
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Build Rust extensions
+RUN cd passivbot-rust \
+    && maturin build --release \
+    && pip install target/wheels/*.whl
+
+# Install passivbot package
+RUN pip install --no-cache-dir -e .
+
+# Install test dependencies
+RUN pip install --no-cache-dir pytest pytest-asyncio || true
+
+# Drop to non-root
+USER botuser
+
+# Default: run pytest
+CMD python -m pytest tests/ pytests/ -v --tb=short 2>&1

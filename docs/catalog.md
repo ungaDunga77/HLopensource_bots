@@ -4,7 +4,7 @@
 
 | # | Name | Repo | Lang | Strategy | Tier | Status |
 |---|------|------|------|----------|------|--------|
-| 1 | Passivbot | enarjord/passivbot | Python/Rust | Market-making, contrarian grid | 1 | Not started |
+| 1 | Passivbot | enarjord/passivbot | Python/Rust | Market-making, contrarian grid | 1 | **3.83** |
 | 2 | Hummingbot | hummingbot/hummingbot | Python | Market-making platform | 1 | Not started |
 | 3 | Chainstack Grid Bot | chainstacklabs/hyperliquid-trading-bot | Python | YAML grid trading | 1 | **3.60** |
 | 4 | HyperLiquidAlgoBot | SimSimButDifferent/HyperLiquidAlgoBot | JS/Python | Bollinger+RSI+ADX, ML | 2 | Not started |
@@ -34,11 +34,13 @@
 - **Language**: Python + Rust (optimizer)
 - **Strategy**: Market-making with contrarian grid. Creates and cancels limit orders on perpetual futures. Long positions: enters below price, short positions: enters above price.
 - **Key features**: Evolutionary algorithm optimizer, built-in backtester, multi-exchange (Bybit, Bitget, OKX, GateIO, Binance, Kucoin, Hyperliquid), extensive wiki documentation
-- **License**: TBD (check repo)
-- **Stars**: High (well-established project)
-- **HL support**: Native, multi-exchange architecture. Has Hyperliquid vault reference.
-- **Security notes**: Pre-audit. Well-known project with community oversight.
-- **Evaluation priority**: 3rd (after SDK baseline and Chainstack)
+- **License**: Unlicense (public domain)
+- **Stars**: 1,900 | Forks: 639 | Contributors: 46
+- **Commits**: 7,688 on main
+- **Created**: Well-established, active through v7.8.5 (March 2025)
+- **HL support**: Via CCXT abstraction. HIP-3 stock perps, vault accounts, custom price rounding. No official SDK. No testnet support.
+- **Security notes**: Audited 2026-04-01. Plaintext api-keys.json, custom endpoint override lacks URL validation. Zero vulns in live deps.
+- **Evaluation priority**: 3rd (after SDK baseline and Chainstack) — **Evaluated 2026-04-01** | Score: 3.83
 
 ### 2. Hummingbot
 - **Repo**: https://github.com/hummingbot/hummingbot
