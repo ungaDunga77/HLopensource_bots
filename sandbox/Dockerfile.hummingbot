@@ -1,0 +1,58 @@
+# Sandbox for Hummingbot (Conda + Cython)
+# Based on Hummingbot's own Dockerfile, with security hardening
+# Build: docker build --build-arg BOT_PATH=bots/hummingbot -f sandbox/Dockerfile.hummingbot -t bot-hummingbot ..
+
+FROM continuumio/miniconda3:latest
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+# System build dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    sudo gcc g++ python3-dev libusb-1.0-0 \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Copy bot source
+ARG BOT_PATH
+COPY ${BOT_PATH}/setup/environment.yml /tmp/environment.yml
+
+# Create conda environment
+RUN conda env create -f /tmp/environment.yml && \
+    conda clean -afy && \
+    rm /tmp/environment.yml
+
+COPY ${BOT_PATH}/setup/pip_packages.txt /tmp/pip_packages.txt
+RUN /opt/conda/envs/hummingbot/bin/python -m pip install --no-deps -r /tmp/pip_packages.txt && \
+    rm /tmp/pip_packages.txt
+
+# Copy source for Cython build
+COPY ${BOT_PATH}/hummingbot/ /app/hummingbot/
+COPY ${BOT_PATH}/setup.py /app/
+COPY ${BOT_PATH}/bin/ /app/bin/
+COPY ${BOT_PATH}/scripts/ /app/scripts/
+COPY ${BOT_PATH}/controllers/ /app/controllers/
+
+# Build Cython extensions
+SHELL ["/bin/bash", "-lc"]
+RUN echo "conda activate hummingbot" >> ~/.bashrc
+RUN conda run -n hummingbot python setup.py build_ext --inplace -j 4 && \
+    rm -rf build/ && \
+    find . -type f -name "*.cpp" -delete
+
+# Install test dependencies
+RUN conda run -n hummingbot pip install pytest pytest-asyncio aioresponses || true
+
+# Copy test files
+COPY ${BOT_PATH}/test/ /app/test/
+
+# Non-root user (security hardening)
+RUN useradd --create-home --shell /bin/bash botuser && \
+    chown -R botuser:botuser /app
+USER botuser
+
+# Default: run HL-specific tests only
+CMD conda run -n hummingbot python -m pytest \
+    test/hummingbot/connector/exchange/hyperliquid/ \
+    test/hummingbot/connector/derivative/hyperliquid_perpetual/ \
+    -v --tb=short 2>&1

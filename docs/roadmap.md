@@ -25,8 +25,8 @@
 - [x] Clone + review Official SDK (hyperliquid-python-sdk) as reference baseline
 - [x] Clone + audit Chainstack Grid Bot
 - [x] Clone + audit Passivbot
-- [ ] Clone + audit Hummingbot (HL connector only)
-- [ ] Complete evaluation scorecards for all Tier 1 bots
+- [x] Clone + audit Hummingbot (HL connector only)
+- [x] Complete evaluation scorecards for all Tier 1 bots
 
 ## Phase 3: Tier 2 Evaluations
 - [ ] Evaluate HyperLiquidAlgoBot

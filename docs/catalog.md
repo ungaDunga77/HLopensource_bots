@@ -5,7 +5,7 @@
 | # | Name | Repo | Lang | Strategy | Tier | Status |
 |---|------|------|------|----------|------|--------|
 | 1 | Passivbot | enarjord/passivbot | Python/Rust | Market-making, contrarian grid | 1 | **3.83** |
-| 2 | Hummingbot | hummingbot/hummingbot | Python | Market-making platform | 1 | Not started |
+| 2 | Hummingbot | hummingbot/hummingbot | Python | Market-making platform | 1 | **4.18** |
 | 3 | Chainstack Grid Bot | chainstacklabs/hyperliquid-trading-bot | Python | YAML grid trading | 1 | **3.60** |
 | 4 | HyperLiquidAlgoBot | SimSimButDifferent/HyperLiquidAlgoBot | JS/Python | Bollinger+RSI+ADX, ML | 2 | Not started |
 | 5 | Copy Trader | MaxIsOntoSomething/Hyperliquid_Copy_Trader | Python | WebSocket copy trading | 2 | Not started |
@@ -49,10 +49,11 @@
 - **Strategy**: Market-making platform with multiple strategy types. HL perp and spot connectors.
 - **Key features**: Institutional-grade, Hyperliquid Foundation sponsorship, HIP-3 market support, funding rate arbitrage, vault creation
 - **License**: Apache-2.0
-- **Stars**: Very high (established platform, 8k+)
-- **HL support**: Dedicated connectors for perp and spot. API key authentication.
-- **Security notes**: Pre-audit. Foundation-backed, large contributor base. Codebase is very large — focus evaluation on HL connector code only.
-- **Evaluation priority**: 4th (large codebase, focus on HL connector)
+- **Stars**: 17,896 | Forks: 4,563 | Contributors: 100+
+- **Commits**: Active (last HL connector: Feb 2026)
+- **HL support**: Dual spot + perp connectors with custom EIP-712 signing. HIP-3 markets, vault support, API wallet mode, TPSL, testnet, candle feeds, rate oracle. Broker ID: HBOT.
+- **Security notes**: Audited 2026-04-01. AES-CTR encrypted keyfiles (best key mgmt of all bots). Pydantic SecretStr. No custom endpoint overrides. Nonce divergence between spot/perp auth (spot has thread-safe NonceManager, perp does not).
+- **Evaluation priority**: 4th (large codebase, focus on HL connector) — **Evaluated 2026-04-01** | Score: 4.18
 
 ### 3. Chainstack Grid Bot
 - **Repo**: https://github.com/chainstacklabs/hyperliquid-trading-bot
