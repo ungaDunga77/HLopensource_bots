@@ -8,7 +8,7 @@
 | 2 | Hummingbot | hummingbot/hummingbot | Python | Market-making platform | 1 | **4.18** |
 | 3 | Chainstack Grid Bot | chainstacklabs/hyperliquid-trading-bot | Python | YAML grid trading | 1 | **3.60** |
 | 4 | HyperLiquidAlgoBot | SimSimButDifferent/HyperLiquidAlgoBot | JS/Python | Bollinger+RSI+ADX, ML | 2 | **2.39** |
-| 5 | Copy Trader | MaxIsOntoSomething/Hyperliquid_Copy_Trader | Python | WebSocket copy trading | 2 | Not started |
+| 5 | Copy Trader | MaxIsOntoSomething/Hyperliquid_Copy_Trader | Python | WebSocket copy trading | 2 | **2.84** |
 | 6 | Copy Trading Bot | gamma-trade-lab/Hyperliquid-Copy-Trading-Bot | TS/Node | Copy trading w/ risk params | 2 | Not started |
 | 7 | Grid Bot | SrDebiasi/hyperliquid-grid-bot | Python | Grid trading | 2 | Not started |
 | 8 | Market Maker | Novus-Tech-LLC/Hyperliquid-Market-Maker | — | Market making | 2 | Not started |
@@ -91,9 +91,13 @@
 - **Repo**: https://github.com/MaxIsOntoSomething/Hyperliquid_Copy_Trader
 - **Language**: Python
 - **Strategy**: Mirrors trades from any wallet in real-time. Automatic position sizing based on account balance ratio.
-- **Key features**: WebSocket real-time trading, integer leverage, market/limit orders, Telegram notifications, dry-run mode
-- **HL support**: WebSocket + API
-- **Security notes**: Pre-audit. Has dry-run mode (good sign).
+- **Key features**: WebSocket real-time trading, integer leverage, market/limit orders, Telegram notifications (7 commands + hourly reports), dry-run mode (default on), proportional/fixed sizing, blocked assets, entry quality checks
+- **License**: MIT
+- **Stars**: N/A | Contributors: 1 (MaxIsOntoSomething)
+- **Commits**: 1 visible (shallow clone). Last: 2026-01-15.
+- **HL support**: Custom HTTP with EIP-712 signing (not official SDK). REST + WebSocket (userEvents, trades, allMids). No testnet support.
+- **Security notes**: Audited 2026-04-02. 29 vulns in deps (aiohttp 3.9.1, requests 2.31.0). Dockerfile bakes .env into image. Live trading path likely broken (incorrect API payload format). Dry-run hardcoded to True in main.py. Good risk management design.
+- **Evaluation priority**: 2nd Tier 2 bot — **Evaluated 2026-04-02** | Score: 2.84
 
 ### 6. Hyperliquid Copy Trading Bot
 - **Repo**: https://github.com/gamma-trade-lab/Hyperliquid-Copy-Trading-Bot

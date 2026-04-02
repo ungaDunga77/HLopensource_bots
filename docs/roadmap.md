@@ -30,7 +30,7 @@
 
 ## Phase 3: Tier 2 Evaluations
 - [x] Evaluate HyperLiquidAlgoBot
-- [ ] Evaluate Copy Trader (MaxIsOntoSomething)
+- [x] Evaluate Copy Trader (MaxIsOntoSomething)
 - [ ] Evaluate Copy Trading Bot (gamma-trade-lab)
 - [ ] Evaluate Grid Bot (SrDebiasi)
 - [ ] Evaluate Market Maker (Novus-Tech-LLC)
