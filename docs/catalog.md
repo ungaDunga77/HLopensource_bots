@@ -7,7 +7,7 @@
 | 1 | Passivbot | enarjord/passivbot | Python/Rust | Market-making, contrarian grid | 1 | **3.83** |
 | 2 | Hummingbot | hummingbot/hummingbot | Python | Market-making platform | 1 | **4.18** |
 | 3 | Chainstack Grid Bot | chainstacklabs/hyperliquid-trading-bot | Python | YAML grid trading | 1 | **3.60** |
-| 4 | HyperLiquidAlgoBot | SimSimButDifferent/HyperLiquidAlgoBot | JS/Python | Bollinger+RSI+ADX, ML | 2 | Not started |
+| 4 | HyperLiquidAlgoBot | SimSimButDifferent/HyperLiquidAlgoBot | JS/Python | Bollinger+RSI+ADX, ML | 2 | **2.39** |
 | 5 | Copy Trader | MaxIsOntoSomething/Hyperliquid_Copy_Trader | Python | WebSocket copy trading | 2 | Not started |
 | 6 | Copy Trading Bot | gamma-trade-lab/Hyperliquid-Copy-Trading-Bot | TS/Node | Copy trading w/ risk params | 2 | Not started |
 | 7 | Grid Bot | SrDebiasi/hyperliquid-grid-bot | Python | Grid trading | 2 | Not started |
@@ -76,15 +76,16 @@
 
 ### 4. HyperLiquidAlgoBot
 - **Repo**: https://github.com/SimSimButDifferent/HyperLiquidAlgoBot
-- **Language**: JavaScript (22.6%) + HTML (77.4%) + Python (backtesting/ML)
+- **Language**: JavaScript (all source is .js despite TS deps). HTML is backtesting output.
 - **Strategy**: Bollinger Bands + RSI + ADX indicators for automated trading, 15-minute timeframes or less
-- **Key features**: Backtesting framework, ML optimization (scikit-learn, xgboost, shap), performance visualization
+- **Key features**: Backtesting framework, ML optimization framework (non-functional — uses Math.random() for features), performance visualization
 - **License**: MIT
 - **Stars**: 44
 - **Contributors**: 2 (SimSimButDifferent + dependabot)
-- **HL support**: Custom integration in `src/hyperliquid/` (marketInfo.js, trade.js, websocket.js)
-- **Security notes**: CRITICAL — private key stored in `.env` file. Only 2 contributors = limited code review. No obfuscation detected.
-- **Python deps**: numpy, pandas, scikit-learn, xgboost, shap, matplotlib
+- **Commits**: Last 2026-01-22. Single merged PR (dependabot).
+- **HL support**: Uses `hyperliquid` npm package (unofficial community SDK). Custom integration in `src/hyperliquid/` (marketInfo.js, trade.js, websocket.js). Inconsistent testnet handling.
+- **Security notes**: Audited 2026-04-01. Private key via .env (not encrypted). Market orders use GTC limits (dangerous). Repurposed from dYdX bot (unused deps remain). No tests. 0 vulnerabilities in deps.
+- **Evaluation priority**: 1st Tier 2 bot — **Evaluated 2026-04-01** | Score: 2.39
 
 ### 5. Hyperliquid Copy Trader
 - **Repo**: https://github.com/MaxIsOntoSomething/Hyperliquid_Copy_Trader

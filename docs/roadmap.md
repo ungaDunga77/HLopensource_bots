@@ -29,7 +29,7 @@
 - [x] Complete evaluation scorecards for all Tier 1 bots
 
 ## Phase 3: Tier 2 Evaluations
-- [ ] Evaluate HyperLiquidAlgoBot
+- [x] Evaluate HyperLiquidAlgoBot
 - [ ] Evaluate Copy Trader (MaxIsOntoSomething)
 - [ ] Evaluate Copy Trading Bot (gamma-trade-lab)
 - [ ] Evaluate Grid Bot (SrDebiasi)

@@ -1,0 +1,129 @@
+{
+  "target": "bots/hyperliquid-algo-bot",
+  "languages": [
+    "node"
+  ],
+  "vulnerability_count": 0,
+  "has_critical": false,
+  "findings": [
+    {
+      "severity": "LOW",
+      "category": "pinning",
+      "package": "@dydxprotocol/v4-client-js",
+      "description": "Dependency uses version range: ^1.15.1",
+      "details": ""
+    },
+    {
+      "severity": "LOW",
+      "category": "pinning",
+      "package": "config",
+      "description": "Dependency uses version range: ^3.3.9",
+      "details": ""
+    },
+    {
+      "severity": "LOW",
+      "category": "pinning",
+      "package": "dotenv",
+      "description": "Dependency uses version range: ^16.3.1",
+      "details": ""
+    },
+    {
+      "severity": "LOW",
+      "category": "pinning",
+      "package": "ethers",
+      "description": "Dependency uses version range: ^6.9.0",
+      "details": ""
+    },
+    {
+      "severity": "LOW",
+      "category": "pinning",
+      "package": "hyperliquid",
+      "description": "Dependency uses version range: ^1.5.6",
+      "details": ""
+    },
+    {
+      "severity": "LOW",
+      "category": "pinning",
+      "package": "lodash",
+      "description": "Dependency uses version range: ^4.17.23",
+      "details": ""
+    },
+    {
+      "severity": "LOW",
+      "category": "pinning",
+      "package": "open",
+      "description": "Dependency uses version range: ^10.1.0",
+      "details": ""
+    },
+    {
+      "severity": "LOW",
+      "category": "pinning",
+      "package": "plotly",
+      "description": "Dependency uses version range: ^1.0.6",
+      "details": ""
+    },
+    {
+      "severity": "LOW",
+      "category": "pinning",
+      "package": "sqlite3",
+      "description": "Dependency uses version range: ^5.1.6",
+      "details": ""
+    },
+    {
+      "severity": "LOW",
+      "category": "pinning",
+      "package": "technicalindicators",
+      "description": "Dependency uses version range: ^3.1.0",
+      "details": ""
+    },
+    {
+      "severity": "LOW",
+      "category": "pinning",
+      "package": "trading-signals",
+      "description": "Dependency uses version range: ^6.0.1",
+      "details": ""
+    },
+    {
+      "severity": "LOW",
+      "category": "pinning",
+      "package": "tulind",
+      "description": "Dependency uses version range: ^0.8.20",
+      "details": ""
+    },
+    {
+      "severity": "LOW",
+      "category": "pinning",
+      "package": "typescript",
+      "description": "Dependency uses version range: ^5.3.3",
+      "details": ""
+    },
+    {
+      "severity": "LOW",
+      "category": "pinning",
+      "package": "winston",
+      "description": "Dependency uses version range: ^3.17.0",
+      "details": ""
+    },
+    {
+      "severity": "LOW",
+      "category": "pinning",
+      "package": "yargs",
+      "description": "Dependency uses version range: ^17.7.2",
+      "details": ""
+    },
+    {
+      "severity": "INFO",
+      "category": "note",
+      "package": "",
+      "description": "Node dependencies: 15 runtime, 9 dev",
+      "details": ""
+    },
+    {
+      "severity": "INFO",
+      "category": "note",
+      "package": "",
+      "description": "Full npm audit deferred to Docker sandbox (requires npm install)",
+      "details": ""
+    }
+  ]
+}
