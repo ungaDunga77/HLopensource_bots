@@ -9,7 +9,7 @@
 | 3 | Chainstack Grid Bot | chainstacklabs/hyperliquid-trading-bot | Python | YAML grid trading | 1 | **3.60** |
 | 4 | HyperLiquidAlgoBot | SimSimButDifferent/HyperLiquidAlgoBot | JS/Python | Bollinger+RSI+ADX, ML | 2 | **2.39** |
 | 5 | Copy Trader | MaxIsOntoSomething/Hyperliquid_Copy_Trader | Python | WebSocket copy trading | 2 | **2.84** |
-| 6 | Copy Trading Bot | gamma-trade-lab/Hyperliquid-Copy-Trading-Bot | TS/Node | Copy trading w/ risk params | 2 | Not started |
+| 6 | Copy Trading Bot | gamma-trade-lab/Hyperliquid-Copy-Trading-Bot | TS/Node | Copy trading w/ risk params | 2 | **2.87** |
 | 7 | Grid Bot | SrDebiasi/hyperliquid-grid-bot | Python | Grid trading | 2 | Not started |
 | 8 | Market Maker | Novus-Tech-LLC/Hyperliquid-Market-Maker | — | Market making | 2 | Not started |
 | 9 | Rust Bot | 0xNoSystem/hyperliquid_rust_bot | Rust/React | Indicator-driven | 2 | Not started |
@@ -102,9 +102,14 @@
 ### 6. Hyperliquid Copy Trading Bot
 - **Repo**: https://github.com/gamma-trade-lab/Hyperliquid-Copy-Trading-Bot
 - **Language**: TypeScript/Node.js
-- **Strategy**: Production-grade copy trading mirroring wallet trades in real-time
-- **Key features**: Position tracking, risk parameter controls, dry-run/testnet modes, safety resilience
-- **Security notes**: Pre-audit. Keyword repetition in title (minor concern).
+- **Strategy**: Copy trading — mirrors target wallet fills via WebSocket, proportional sizing by equity ratio
+- **Key features**: Equity-ratio position sizing, Zod config validation, custom error hierarchy with retry/backoff, WebSocket auto-reconnect, health check drift detection, Telegram notifications (7 types), winston rotating logs (5 categories), dry-run mode
+- **License**: MIT
+- **Stars**: N/A | Contributors: 1 (gamma-trade-lab)
+- **Commits**: 1 ("Update README.md") on 2026-03-09. Code dump.
+- **HL support**: References `@nktkas/hyperliquid` community SDK but integration is speculative — `any` types everywhere, constructor params guessed, comments say "adjust based on actual SDK." Would likely fail on first run. No official SDK. Testnet flag with different URLs.
+- **Security notes**: Audited 2026-04-02. 0 dep vulns but no lock file (gitignored). `.env.example` is from a completely different project (Solana/Twitter/Discord/GROQ keys). DRY_RUN defaults to false. `capPositionSize` has unit mismatch (base units vs USD).
+- **Evaluation priority**: 3rd Tier 2 bot — **Evaluated 2026-04-02** | Score: 2.87
 
 ### 7. Hyperliquid Grid Bot
 - **Repo**: https://github.com/SrDebiasi/hyperliquid-grid-bot

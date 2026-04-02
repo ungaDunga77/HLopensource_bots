@@ -1,0 +1,73 @@
+{
+  "target": "bots/copy-trading-bot",
+  "languages": [
+    "node"
+  ],
+  "vulnerability_count": 0,
+  "has_critical": false,
+  "findings": [
+    {
+      "severity": "MEDIUM",
+      "category": "pinning",
+      "package": "",
+      "description": "No lock file found (package-lock.json or yarn.lock)",
+      "details": ""
+    },
+    {
+      "severity": "LOW",
+      "category": "pinning",
+      "package": "@nktkas/hyperliquid",
+      "description": "Dependency uses version range: ^0.1.0",
+      "details": ""
+    },
+    {
+      "severity": "LOW",
+      "category": "pinning",
+      "package": "dotenv",
+      "description": "Dependency uses version range: ^16.4.7",
+      "details": ""
+    },
+    {
+      "severity": "LOW",
+      "category": "pinning",
+      "package": "winston-daily-rotate-file",
+      "description": "Dependency uses version range: ^5.0.0",
+      "details": ""
+    },
+    {
+      "severity": "LOW",
+      "category": "pinning",
+      "package": "zod",
+      "description": "Dependency uses version range: ^3.23.8",
+      "details": ""
+    },
+    {
+      "severity": "LOW",
+      "category": "pinning",
+      "package": "ws",
+      "description": "Dependency uses version range: ^8.18.0",
+      "details": ""
+    },
+    {
+      "severity": "LOW",
+      "category": "pinning",
+      "package": "node-telegram-bot-api",
+      "description": "Dependency uses version range: ^0.66.0",
+      "details": ""
+    },
+    {
+      "severity": "INFO",
+      "category": "note",
+      "package": "",
+      "description": "Node dependencies: 8 runtime, 5 dev",
+      "details": ""
+    },
+    {
+      "severity": "INFO",
+      "category": "note",
+      "package": "",
+      "description": "Full npm audit deferred to Docker sandbox (requires npm install)",
+      "details": ""
+    }
+  ]
+}
