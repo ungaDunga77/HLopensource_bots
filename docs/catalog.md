@@ -10,10 +10,10 @@
 | 4 | HyperLiquidAlgoBot | SimSimButDifferent/HyperLiquidAlgoBot | JS/Python | Bollinger+RSI+ADX, ML | 2 | **2.39** |
 | 5 | Copy Trader | MaxIsOntoSomething/Hyperliquid_Copy_Trader | Python | WebSocket copy trading | 2 | **2.84** |
 | 6 | Copy Trading Bot | gamma-trade-lab/Hyperliquid-Copy-Trading-Bot | TS/Node | Copy trading w/ risk params | 2 | **2.87** |
-| 7 | Grid Bot | SrDebiasi/hyperliquid-grid-bot | Python | Grid trading | 2 | Not started |
-| 8 | Market Maker | Novus-Tech-LLC/Hyperliquid-Market-Maker | — | Market making | 2 | Not started |
-| 9 | Rust Bot | 0xNoSystem/hyperliquid_rust_bot | Rust/React | Indicator-driven | 2 | Not started |
-| 10 | Drift Arbitrage | rustjesty/hyperliquid-drift-arbitrage-bot | Rust | Cross-exchange arb | 2 | Not started |
+| 7 | Grid Bot | SrDebiasi/hyperliquid-grid-bot | JS/Node | Spot grid trading | 2 | **2.47** |
+| 8 | Market Maker | Novus-Tech-LLC/Hyperliquid-Market-Maker | Rust/React | RSI scalping (mislabeled) | 2 | **1.47** |
+| 9 | Rust Bot | 0xNoSystem/hyperliquid_rust_bot | Rust/React | Rhai DSL platform | 2 | **2.84** |
+| 10 | Drift Arbitrage | rustjesty/hyperliquid-drift-arbitrage-bot | Python | Cross-exchange arb | 2 | **2.70** |
 | 11 | AI Trading Bot | hyperliquid-ai-trading-bot/hyperliquid-ai-trading-bot | Python | AI-powered (claims) | 3 | Not started |
 | 12 | Hypercopy-xyz | artiya4u/hypercopy-xyz | — | Copy trading | 3 | Not started |
 | 13 | LSTM Bot | redm3/HYPERLIQUID | Python | LSTM ML | 3 | Not started |
@@ -113,29 +113,51 @@
 
 ### 7. Hyperliquid Grid Bot
 - **Repo**: https://github.com/SrDebiasi/hyperliquid-grid-bot
-- **Language**: Python
-- **Strategy**: Configurable grid trading with dynamic exposure tracking
-- **Key features**: Weighted entry-based PnL calculations, Telegram reporting, micro-range generation for profit targeting
-- **Security notes**: Pre-audit.
+- **Language**: JavaScript/Node.js (catalog previously listed Python — corrected)
+- **Strategy**: Spot grid trading — volatility harvesting with limit orders across configurable price range. Buy low, sell high repeatedly. Spot-only, no leverage.
+- **Key features**: Fastify web dashboard with TradingView charts, PostgreSQL persistence (Sequelize ORM), multi-instance support, built-in backtester (Binance klines), reserve order system (capital blocking), cleanup logic, rebuy/compounding, Telegram notifications, healthchecks.io uptime monitoring, PM2 process management, Docker deployment
+- **License**: Not specified in package.json
+- **Stars**: N/A | Contributors: 1 (SrDebiasi)
+- **Commits**: 1 ("Fix formatting in README for dashboard view link"). Code dump.
+- **HL support**: Uses `@nktkas/hyperliquid` community SDK (v0.31.0). Well-wrapped HyperliquidAdapter (647 lines). Spot pairs only (no perps). WebSocket for aggregate trades. Testnet flag with correct URLs.
+- **Security notes**: Audited 2026-04-02. **Critical**: private keys stored plaintext in PostgreSQL. Unauthenticated REST API with wildcard CORS accepts key uploads. Docker entrypoint sets PostgreSQL trust auth (`host all all 0.0.0.0/0 trust`). Mass assignment vulnerability in API endpoints. 0 dep vulnerabilities. Testnet defaults to off.
+- **Evaluation priority**: 4th Tier 2 bot — **Evaluated 2026-04-02** | Score: 2.47
 
 ### 8. Hyperliquid Market Maker
-- **Repo**: https://github.com/Novus-Tech-LLC/Hyperliquid-Market-Maker
-- **Language**: Not determined
-- **Strategy**: High-performance automated perpetual trading, market making
-- **Security notes**: Pre-audit. Limited info available.
+- **Repo**: https://github.com/Novus-Tech-LLC/Hyperliquid-Market-Maker (404 — recovered from fork [nvampx/Hyperliquid-Market-Maker](https://github.com/nvampx/Hyperliquid-Market-Maker))
+- **Language**: Rust (~1,595 LOC) + React/TypeScript (frontend)
+- **Strategy**: RSI-based scalping (mislabeled as "market maker"). RSI + StochRSI + SMA-on-RSI with configurable risk levels. Time-based exits (420s fixed duration). Perps-only, market orders with 1% slippage.
+- **Key features**: Multi-market async orchestration (per-asset signal engine + executor), 7 indicator types via `kwant` library, React web dashboard with real-time WebSocket updates, margin allocation system, 200+ perp assets cataloged
+- **License**: **None** (cannot legally use or redistribute)
+- **Stars**: 37 | Forks: 18 | Contributors: 1 (novustch)
+- **Commits**: 7 (all on 2025-10-15, code dump + 1 README update 2025-11-18)
+- **HL support**: Custom fork of `hyperliquid_rust_sdk` (0xNoSystem's branch, same as #9). InfoClient + ExchangeClient + WebSocket. Market orders only. **No testnet** (hardcoded mainnet). No Cargo.lock.
+- **Security notes**: Audited 2026-04-02. 32 unwrap/panic/expect calls including `panic!("THIS IS INSANE")` on exchange data. No Cargo.lock. 90% margin per trade with no stop-loss. All state in-memory (lost on crash). `unsafe impl Send`. No API auth, wildcard CORS. Published by contract dev shop (Novus-Tech-LLC, Telegram/WhatsApp contacts). Shares 0xNoSystem's libraries but is significantly less mature than #9.
+- **Evaluation priority**: 5th Tier 2 bot — **Evaluated 2026-04-02** | Score: 1.47 (Avoid)
 
 ### 9. Hyperliquid Rust Bot
 - **Repo**: https://github.com/0xNoSystem/hyperliquid_rust_bot
-- **Language**: Rust + React/TypeScript (frontend)
-- **Strategy**: Indicator-driven (RSI, StochRSI, EMA cross, ADX, ATR, SMA/EMA)
-- **Key features**: Per-market timeframes, strategy presets, margin orchestration
-- **Security notes**: Pre-audit. Rust code is harder to audit without Rust expertise.
+- **Language**: Rust (~11,300 LOC) + React/TypeScript (web UI)
+- **Strategy**: Multi-user SaaS trading platform with Rhai scripting DSL. User-written strategies via `on_idle`/`on_open`/`on_busy` hooks. Signal engine state machine (Idle → Armed → Opening → Open → Closing). Perps-only.
+- **Key features**: EIP-191 wallet auth + JWT, AES-256-GCM encrypted agent keys, Rhai scripting with sandbox limits, multi-exchange backtester (Binance/Bybit/MEXC/HTX/Coinbase), PostgreSQL persistence, React web dashboard, per-user margin allocation, WebSocket live updates, PM2-style process management
+- **License**: Not specified
+- **Stars**: N/A | Contributors: 1 (0xNoSystem)
+- **Commits**: 1 ("make default strategy editor view only"). Code dump.
+- **HL support**: Custom fork of `hyperliquid_rust_sdk`. InfoClient + ExchangeClient + WebSocket (UserEvents, Candles). Market + limit orders, cancel, leverage. Perps only, no spot. **No testnet support** (hardcoded mainnet).
+- **Security notes**: Audited 2026-04-02. Best security architecture of Tier 2: AES-256-GCM encrypted keys at rest, EIP-712 agent approval, JWT auth, nonce replay prevention. Concerns: keys in memory not zeroed, custom SDK fork (supply chain), Rhai eval() may be accessible, no rate limiting. 0 dep vulns (deferred). Zero documentation, zero tests.
+- **Evaluation priority**: 5th Tier 2 bot — **Evaluated 2026-04-02** | Score: 2.84
 
 ### 10. Hyperliquid-Drift Arbitrage Bot
 - **Repo**: https://github.com/rustjesty/hyperliquid-drift-arbitrage-bot
-- **Language**: Rust
-- **Strategy**: Market-neutral arbitrage between Drift Protocol (Solana) and Hyperliquid perpetuals. Long on lower-cost exchange, short on higher-cost.
-- **Security notes**: Pre-audit. Cross-exchange = more complex attack surface.
+- **Language**: Python (catalog previously listed Rust — corrected; author handle "rustjesty" caused confusion)
+- **Strategy**: Cross-exchange arbitrage between Drift Protocol (Solana) and Hyperliquid perpetuals. Two strategies: basis (price discrepancy) and funding rate (rate spread). Long on cheaper exchange, short on more expensive. Atomic execution with rollback on partial fill.
+- **Key features**: Abstract connector pattern (Drift + Hyperliquid), Pydantic config validation with env var fallback, execution engine with safe-mode failover, JSONL trade/opportunity logging, dry-run mode, pytest test suite (637 lines), MIT license
+- **License**: MIT
+- **Stars**: N/A | Contributors: 1 (rustjesty / soljesty)
+- **Commits**: 1 ("refac: engine.py by https://t.me/soljesty"). Code dump.
+- **HL support**: Uses `hyperliquid-python-sdk` (official, unpinned). Limit orders, cancel, order book, funding rates, position tracking. REST only (no WebSocket). No testnet docs.
+- **Security notes**: Audited 2026-04-02. **42 dependency vulnerabilities** (aiohttp 16 CVEs, urllib3 9, certifi 4, protobuf 2). Keys from env vars (correct separation). Drift hardcoded to mainnet. Fill detection via position polling (not truly atomic). Best test coverage of Tier 2 (637 lines pytest).
+- **Evaluation priority**: 7th Tier 2 bot — **Evaluated 2026-04-02** | Score: 2.70
 
 ---
 

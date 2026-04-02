@@ -1,0 +1,171 @@
+{
+  "target": "bots/grid-bot-srdebiasi",
+  "languages": [
+    "node"
+  ],
+  "vulnerability_count": 0,
+  "has_critical": false,
+  "findings": [
+    {
+      "severity": "LOW",
+      "category": "pinning",
+      "package": "@fastify/cors",
+      "description": "Dependency uses version range: ^11.2.0",
+      "details": ""
+    },
+    {
+      "severity": "LOW",
+      "category": "pinning",
+      "package": "@fastify/formbody",
+      "description": "Dependency uses version range: ^8.0.2",
+      "details": ""
+    },
+    {
+      "severity": "LOW",
+      "category": "pinning",
+      "package": "@fastify/static",
+      "description": "Dependency uses version range: ^9.0.0",
+      "details": ""
+    },
+    {
+      "severity": "LOW",
+      "category": "pinning",
+      "package": "@fastify/view",
+      "description": "Dependency uses version range: ^11.1.1",
+      "details": ""
+    },
+    {
+      "severity": "LOW",
+      "category": "pinning",
+      "package": "@nktkas/hyperliquid",
+      "description": "Dependency uses version range: ^0.31.0",
+      "details": ""
+    },
+    {
+      "severity": "LOW",
+      "category": "pinning",
+      "package": "axios",
+      "description": "Dependency uses version range: ^1.1.2",
+      "details": ""
+    },
+    {
+      "severity": "LOW",
+      "category": "pinning",
+      "package": "dotenv",
+      "description": "Dependency uses version range: ^17.2.4",
+      "details": ""
+    },
+    {
+      "severity": "LOW",
+      "category": "pinning",
+      "package": "ejs",
+      "description": "Dependency uses version range: ^4.0.1",
+      "details": ""
+    },
+    {
+      "severity": "LOW",
+      "category": "pinning",
+      "package": "fastify",
+      "description": "Dependency uses version range: ^5.7.4",
+      "details": ""
+    },
+    {
+      "severity": "LOW",
+      "category": "pinning",
+      "package": "lightweight-charts",
+      "description": "Dependency uses version range: ^5.1.0",
+      "details": ""
+    },
+    {
+      "severity": "LOW",
+      "category": "pinning",
+      "package": "luxon",
+      "description": "Dependency uses version range: ^3.7.2",
+      "details": ""
+    },
+    {
+      "severity": "LOW",
+      "category": "pinning",
+      "package": "moment",
+      "description": "Dependency uses version range: ^2.29.4",
+      "details": ""
+    },
+    {
+      "severity": "LOW",
+      "category": "pinning",
+      "package": "moment-timezone",
+      "description": "Dependency uses version range: ^0.6.0",
+      "details": ""
+    },
+    {
+      "severity": "LOW",
+      "category": "pinning",
+      "package": "node-telegram-bot-api",
+      "description": "Dependency uses version range: ^0.67.0",
+      "details": ""
+    },
+    {
+      "severity": "LOW",
+      "category": "pinning",
+      "package": "pg",
+      "description": "Dependency uses version range: ^8.18.0",
+      "details": ""
+    },
+    {
+      "severity": "LOW",
+      "category": "pinning",
+      "package": "pm2",
+      "description": "Dependency uses version range: ^6.0.14",
+      "details": ""
+    },
+    {
+      "severity": "LOW",
+      "category": "pinning",
+      "package": "prettier",
+      "description": "Dependency uses version range: ^3.8.1",
+      "details": ""
+    },
+    {
+      "severity": "LOW",
+      "category": "pinning",
+      "package": "run-func",
+      "description": "Dependency uses version range: ^3.0.0",
+      "details": ""
+    },
+    {
+      "severity": "LOW",
+      "category": "pinning",
+      "package": "sequelize",
+      "description": "Dependency uses version range: ^6.37.7",
+      "details": ""
+    },
+    {
+      "severity": "LOW",
+      "category": "pinning",
+      "package": "viem",
+      "description": "Dependency uses version range: ^2.45.3",
+      "details": ""
+    },
+    {
+      "severity": "LOW",
+      "category": "pinning",
+      "package": "ws",
+      "description": "Dependency uses version range: ^8.19.0",
+      "details": ""
+    },
+    {
+      "severity": "INFO",
+      "category": "note",
+      "package": "",
+      "description": "Node dependencies: 21 runtime, 0 dev",
+      "details": ""
+    },
+    {
+      "severity": "INFO",
+      "category": "note",
+      "package": "",
+      "description": "Full npm audit deferred to Docker sandbox (requires npm install)",
+      "details": ""
+    }
+  ]
+}

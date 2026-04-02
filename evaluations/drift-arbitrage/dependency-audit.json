@@ -1,0 +1,346 @@
+{
+  "target": "bots/drift-arbitrage",
+  "languages": [
+    "python"
+  ],
+  "vulnerability_count": 42,
+  "has_critical": false,
+  "findings": [
+    {
+      "severity": "MEDIUM",
+      "category": "vulnerability",
+      "package": "certifi",
+      "description": "[pip-audit] PYSEC-2023-135: Certifi 2023.07.22 removes root certificates from \"e-Tugra\" from the root store. These are in the process of being removed from Mozilla's trust store.   e-Tugra's root certificates are being removed p",
+      "details": "Installed: 2022.12.7, Fix: 2023.7.22"
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "vulnerability",
+      "package": "certifi",
+      "description": "[pip-audit] PYSEC-2023-135: Certifi 2023.07.22 removes root certificates from \"e-Tugra\" from the root store. These are in the process of being removed from Mozilla's trust store. e-Tugra's root certificates are being removed pur",
+      "details": "Installed: 2022.12.7, Fix: 2023.7.22"
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "vulnerability",
+      "package": "certifi",
+      "description": "[pip-audit] PYSEC-2024-230: Certifi 2024.07.04 removes root certificates from \"GLOBALTRUST\" from the root store. These are in the process of being removed from Mozilla's trust store.  GLOBALTRUST's root certificates are being re",
+      "details": "Installed: 2022.12.7, Fix: 2024.7.4"
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "vulnerability",
+      "package": "certifi",
+      "description": "[pip-audit] PYSEC-2024-230: Certifi is a curated collection of Root Certificates for validating the trustworthiness of SSL certificates while verifying the identity of TLS hosts. Certifi starting in 2021.05.30 and prior to 2024.",
+      "details": "Installed: 2022.12.7, Fix: 2024.7.4"
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "vulnerability",
+      "package": "h11",
+      "description": "[pip-audit] CVE-2025-43859: ### Impact  A leniency in h11's parsing of line terminators in chunked-coding message bodies can lead to request smuggling vulnerabilities under certain conditions.  ### Details  HTTP/1.1 Chunked-Enco",
+      "details": "Installed: 0.14.0, Fix: 0.16.0"
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "vulnerability",
+      "package": "idna",
+      "description": "[pip-audit] PYSEC-2024-60: ### Impact A specially crafted argument to the `idna.encode()` function could consume significant resources. This may lead to a denial-of-service.  ### Patches The function has been refined to reject ",
+      "details": "Installed: 3.4, Fix: 3.7"
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "vulnerability",
+      "package": "idna",
+      "description": "[pip-audit] PYSEC-2024-60: A vulnerability was identified in the kjd/idna library, specifically within the `idna.encode()` function, affecting version 3.6. The issue arises from the function's handling of crafted input strings,",
+      "details": "Installed: 3.4, Fix: 3.7"
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "vulnerability",
+      "package": "protobuf",
+      "description": "[pip-audit] CVE-2025-4565: ### Summary Any project that uses Protobuf pure-Python backend to parse untrusted Protocol Buffers data containing an arbitrary number of **recursive groups**, **recursive messages** or **a series of ",
+      "details": "Installed: 5.29.2, Fix: 4.25.8, 5.29.5, 6.31.1"
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "vulnerability",
+      "package": "protobuf",
+      "description": "[pip-audit] CVE-2026-0994: A denial-of-service (DoS) vulnerability exists in google.protobuf.json_format.ParseDict() in Python, where the max_recursion_depth limit can be bypassed when parsing nested google.protobuf.Any message",
+      "details": "Installed: 5.29.2, Fix: 5.29.6, 6.33.5"
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "vulnerability",
+      "package": "py",
+      "description": "[pip-audit] PYSEC-2022-42969: The py library through 1.11.0 for Python allows remote attackers to conduct a ReDoS (Regular expression Denial of Service) attack via a Subversion repository with crafted info data, because the InfoSv",
+      "details": "Installed: 1.11.0, Fix: none"
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "vulnerability",
+      "package": "pycares",
+      "description": "[pip-audit] GHSA-5qpg-rh4j-qp35: ## Summary  pycares is vulnerable to a use-after-free condition that occurs when a Channel object is garbage collected while DNS queries are still pending. This results in a fatal Python error and int",
+      "details": "Installed: 4.3.0, Fix: 4.9.0"
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "vulnerability",
+      "package": "urllib3",
+      "description": "[pip-audit] PYSEC-2023-192: urllib3 doesn't treat the `Cookie` HTTP header special or provide any helpers for managing cookies over HTTP, that is the responsibility of the user. However, it is possible for a user to specify a `C",
+      "details": "Installed: 1.26.13, Fix: 1.26.17, 2.0.6"
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "vulnerability",
+      "package": "urllib3",
+      "description": "[pip-audit] PYSEC-2023-192: urllib3 is a user-friendly HTTP client library for Python. urllib3 doesn't treat the `Cookie` HTTP header special or provide any helpers for managing cookies over HTTP, that is the responsibility of t",
+      "details": "Installed: 1.26.13, Fix: 1.26.17, 2.0.6"
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "vulnerability",
+      "package": "urllib3",
+      "description": "[pip-audit] PYSEC-2023-212: urllib3 previously wouldn't remove the HTTP request body when an HTTP redirect response using status 303 \"See Other\" after the request had its method changed from one that could accept a request body ",
+      "details": "Installed: 1.26.13, Fix: 1.26.18, 2.0.7"
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "vulnerability",
+      "package": "urllib3",
+      "description": "[pip-audit] PYSEC-2023-212: urllib3 is a user-friendly HTTP client library for Python. urllib3 previously wouldn't remove the HTTP request body when an HTTP redirect response using status 301, 302, or 303 after the request had i",
+      "details": "Installed: 1.26.13, Fix: 1.26.18, 2.0.7"
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "vulnerability",
+      "package": "urllib3",
+      "description": "[pip-audit] CVE-2024-37891: When using urllib3's proxy support with `ProxyManager`, the `Proxy-Authorization` header is only sent to the configured proxy, as expected.  However, when sending HTTP requests *without* using urllib3",
+      "details": "Installed: 1.26.13, Fix: 1.26.19, 2.2.2"
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "vulnerability",
+      "package": "urllib3",
+      "description": "[pip-audit] CVE-2025-50181: urllib3 handles redirects and retries using the same mechanism, which is controlled by the `Retry` object. The most common way to disable redirects is at the request level, as follows:  ```python resp",
+      "details": "Installed: 1.26.13, Fix: 2.5.0"
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "vulnerability",
+      "package": "urllib3",
+      "description": "[pip-audit] CVE-2025-66418: ## Impact  urllib3 supports chained HTTP encoding algorithms for response content according to RFC 9110 (e.g., `Content-Encoding: gzip, zstd`).  However, the number of links in the decompression chain",
+      "details": "Installed: 1.26.13, Fix: 2.6.0"
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "vulnerability",
+      "package": "urllib3",
+      "description": "[pip-audit] CVE-2025-66471: ### Impact  urllib3's [streaming API](https://urllib3.readthedocs.io/en/2.5.0/advanced-usage.html#streaming-and-i-o) is designed for the efficient handling of large HTTP responses by reading the conte",
+      "details": "Installed: 1.26.13, Fix: 2.6.0"
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "vulnerability",
+      "package": "urllib3",
+      "description": "[pip-audit] CVE-2026-21441: ### Impact  urllib3's [streaming API](https://urllib3.readthedocs.io/en/2.6.2/advanced-usage.html#streaming-and-i-o) is designed for the efficient handling of large HTTP responses by reading the conte",
+      "details": "Installed: 1.26.13, Fix: 2.6.3"
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "vulnerability",
+      "package": "aiohttp",
+      "description": "[pip-audit] CVE-2026-34515: ### Summary  On Windows the static resource handler may expose information about a NTLMv2 remote path.  ### Impact  If an application is running on Windows, and using aiohttp's static resource handler",
+      "details": "Installed: 3.10.5, Fix: 3.13.4"
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "vulnerability",
+      "package": "aiohttp",
+      "description": "[pip-audit] CVE-2026-34513: ### Summary  An unbounded DNS cache could result in excessive memory usage possibly resulting in a DoS situation.  ### Impact  If an application makes requests to a very large number of hosts, this co",
+      "details": "Installed: 3.10.5, Fix: 3.13.4"
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "vulnerability",
+      "package": "aiohttp",
+      "description": "[pip-audit] CVE-2026-34516: ### Summary  A response with an excessive number of multipart headers may be allowed to use more memory than intended, potentially allowing a DoS vulnerability.  ### Impact  Multipart headers were not",
+      "details": "Installed: 3.10.5, Fix: 3.13.4"
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "vulnerability",
+      "package": "aiohttp",
+      "description": "[pip-audit] CVE-2026-34517: ### Summary  For some multipart form fields, aiohttp read the entire field into memory before checking client_max_size.  ### Impact  If an application uses `Request.post()` an attacker can send a spec",
+      "details": "Installed: 3.10.5, Fix: 3.13.4"
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "vulnerability",
+      "package": "aiohttp",
+      "description": "[pip-audit] CVE-2026-34519: ### Summary  An attacker who controls the `reason` parameter when creating a `Response` may be able to inject extra headers or similar exploits.  ### Impact  In the unlikely situation that an applicat",
+      "details": "Installed: 3.10.5, Fix: 3.13.4"
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "vulnerability",
+      "package": "aiohttp",
+      "description": "[pip-audit] CVE-2026-34518: ### Summary  When following redirects to a different origin, aiohttp drops the Authorization header, but retains the Cookie and Proxy-Authorization headers.  ### Impact  The Cookie and Proxy-Authoriza",
+      "details": "Installed: 3.10.5, Fix: 3.13.4"
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "vulnerability",
+      "package": "aiohttp",
+      "description": "[pip-audit] CVE-2026-34520: ### Summary  The C parser (the default for most installs) accepted null bytes and control characters is response headers.  ### Impact  An attacker could send header values that are interpreted differe",
+      "details": "Installed: 3.10.5, Fix: 3.13.4"
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "vulnerability",
+      "package": "aiohttp",
+      "description": "[pip-audit] CVE-2026-34525: ### Summary  Multiple Host headers were allowed in aiohttp.  ### Impact  Mostly this doesn't affect aiohttp security itself, but if a reverse proxy is applying security rules depending on the target H",
+      "details": "Installed: 3.10.5, Fix: 3.13.4"
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "vulnerability",
+      "package": "aiohttp",
+      "description": "[pip-audit] CVE-2024-52304: ### Summary The Python parser parses newlines in chunk extensions incorrectly which can lead to request smuggling vulnerabilities under certain conditions.  ### Impact If a pure Python version of aioh",
+      "details": "Installed: 3.10.5, Fix: 3.10.11"
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "vulnerability",
+      "package": "aiohttp",
+      "description": "[pip-audit] CVE-2025-53643: ### Summary The Python parser is vulnerable to a request smuggling vulnerability due to not parsing trailer sections of an HTTP request.  ### Impact If a pure Python version of aiohttp is installed (i",
+      "details": "Installed: 3.10.5, Fix: 3.12.14"
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "vulnerability",
+      "package": "aiohttp",
+      "description": "[pip-audit] CVE-2025-69223: ### Summary A zip bomb can be used to execute a DoS against the aiohttp server.  ### Impact An attacker may be able to send a compressed request that when decompressed by aiohttp could exhaust the hos",
+      "details": "Installed: 3.10.5, Fix: 3.13.3"
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "vulnerability",
+      "package": "aiohttp",
+      "description": "[pip-audit] CVE-2025-69224: ### Summary The Python HTTP parser may allow a request smuggling attack with the presence of non-ASCII characters.  ### Impact If a pure Python version of aiohttp is installed (i.e. without the usual ",
+      "details": "Installed: 3.10.5, Fix: 3.13.3"
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "vulnerability",
+      "package": "aiohttp",
+      "description": "[pip-audit] CVE-2025-69228: ### Summary A request can be crafted in such a way that an aiohttp server's memory fills up uncontrollably during processing.  ### Impact If an application includes a handler that uses the `Request.po",
+      "details": "Installed: 3.10.5, Fix: 3.13.3"
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "vulnerability",
+      "package": "aiohttp",
+      "description": "[pip-audit] CVE-2025-69229: ### Summary  Handling of chunked messages can result in excessive blocking CPU usage when receiving a large number of chunks.  ### Impact  If an application makes use of the `request.read()` method in",
+      "details": "Installed: 3.10.5, Fix: 3.13.3"
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "vulnerability",
+      "package": "aiohttp",
+      "description": "[pip-audit] CVE-2025-69230: ### Summary Reading multiple invalid cookies can lead to a logging storm.  ### Impact If the ``cookies`` attribute is accessed in an application, then an attacker may be able to trigger a storm of war",
+      "details": "Installed: 3.10.5, Fix: 3.13.3"
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "vulnerability",
+      "package": "aiohttp",
+      "description": "[pip-audit] CVE-2025-69226: ### Summary Path normalization for static files prevents path traversal, but opens up the ability for an attacker to ascertain the existence of absolute path components.  ### Impact If an application ",
+      "details": "Installed: 3.10.5, Fix: 3.13.3"
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "vulnerability",
+      "package": "aiohttp",
+      "description": "[pip-audit] CVE-2025-69227: ### Summary When assert statements are bypassed, an infinite loop can occur, resulting in a DoS attack when processing a POST body.  ### Impact If optimisations are enabled (`-O` or `PYTHONOPTIMIZE=1`",
+      "details": "Installed: 3.10.5, Fix: 3.13.3"
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "vulnerability",
+      "package": "aiohttp",
+      "description": "[pip-audit] CVE-2025-69225: ### Summary  The parser allows non-ASCII decimals to be present in the Range header.  ### Impact  There is no known impact, but there is the possibility that there's a method to exploit a request smug",
+      "details": "Installed: 3.10.5, Fix: 3.13.3"
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "vulnerability",
+      "package": "aiohttp",
+      "description": "[pip-audit] CVE-2026-22815: ### Summary  Insufficient restrictions in header/trailer handling could cause uncapped memory usage.  ### Impact  An application could cause memory exhaustion when receiving an attacker controlled req",
+      "details": "Installed: 3.10.5, Fix: 3.13.4"
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "vulnerability",
+      "package": "aiohttp",
+      "description": "[pip-audit] CVE-2026-34514: ### Summary  An attacker who controls the `content_type` parameter in aiohttp could use this to inject extra headers or similar exploits.  ### Impact  If an application allows untrusted data to be use",
+      "details": "Installed: 3.10.5, Fix: 3.13.4"
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "vulnerability",
+      "package": "pynacl",
+      "description": "[pip-audit] CVE-2025-69277: libsodium before ad3004e, in atypical use cases involving certain custom cryptography or untrusted data to crypto_core_ed25519_is_valid_point, mishandles checks for whether an elliptic curve point is ",
+      "details": "Installed: 1.6.0, Fix: 1.6.2"
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "vulnerability",
+      "package": "requests",
+      "description": "[pip-audit] CVE-2026-25645: ### Impact The `requests.utils.extract_zipped_paths()` utility function uses a predictable filename when extracting files from zip archives into the system temporary directory. If the target file alre",
+      "details": "Installed: 2.32.5, Fix: 2.33.0"
+    },
+    {
+      "severity": "LOW",
+      "category": "pinning",
+      "package": "hyperliquid-python-sdk",
+      "description": "Dependency not pinned to exact version: hyperliquid-python-sdk",
+      "details": ""
+    },
+    {
+      "severity": "LOW",
+      "category": "pinning",
+      "package": "numpy",
+      "description": "Dependency not pinned to exact version: numpy>=1.26,<2.0",
+      "details": ""
+    },
+    {
+      "severity": "LOW",
+      "category": "pinning",
+      "package": "certifi",
+      "description": "Dependency not pinned to exact version: certifi",
+      "details": ""
+    },
+    {
+      "severity": "LOW",
+      "category": "pinning",
+      "package": "eth-account",
+      "description": "Dependency not pinned to exact version: eth-account",
+      "details": ""
+    },
+    {
+      "severity": "LOW",
+      "category": "pinning",
+      "package": "pytest",
+      "description": "Dependency not pinned to exact version: pytest>=8.0",
+      "details": ""
+    },
+    {
+      "severity": "LOW",
+      "category": "pinning",
+      "package": "pytest-asyncio",
+      "description": "Dependency not pinned to exact version: pytest-asyncio>=0.23",
+      "details": ""
+    }
+  ]
+}

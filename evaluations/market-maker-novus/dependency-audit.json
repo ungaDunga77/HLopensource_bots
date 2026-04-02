@@ -1,0 +1,31 @@
+{
+  "target": "bots/market-maker-novus",
+  "languages": [
+    "rust"
+  ],
+  "vulnerability_count": 0,
+  "has_critical": false,
+  "findings": [
+    {
+      "severity": "MEDIUM",
+      "category": "pinning",
+      "package": "",
+      "description": "No Cargo.lock found \u2014 versions not pinned",
+      "details": ""
+    },
+    {
+      "severity": "INFO",
+      "category": "note",
+      "package": "",
+      "description": "Rust dependencies: 31 runtime, 0 build",
+      "details": ""
+    },
+    {
+      "severity": "INFO",
+      "category": "note",
+      "package": "",
+      "description": "cargo audit deferred to Docker sandbox (cargo not on host)",
+      "details": ""
+    }
+  ]
+}

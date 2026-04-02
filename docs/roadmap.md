@@ -32,11 +32,11 @@
 - [x] Evaluate HyperLiquidAlgoBot
 - [x] Evaluate Copy Trader (MaxIsOntoSomething)
 - [x] Evaluate Copy Trading Bot (gamma-trade-lab)
-- [ ] Evaluate Grid Bot (SrDebiasi)
-- [ ] Evaluate Market Maker (Novus-Tech-LLC)
-- [ ] Evaluate Rust Bot (0xNoSystem)
-- [ ] Evaluate Drift Arbitrage Bot (rustjesty)
-- [ ] Comparative analysis of Tier 2
+- [x] Evaluate Grid Bot (SrDebiasi)
+- [x] Evaluate Market Maker (Novus-Tech-LLC) — recovered from fork, scored 1.47
+- [x] Evaluate Rust Bot (0xNoSystem)
+- [x] Evaluate Drift Arbitrage Bot (rustjesty)
+- [x] Comparative analysis of Tier 2
 
 ## Phase 4: Testnet Trials
 - [ ] Set up HL testnet wallet

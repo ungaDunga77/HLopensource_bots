@@ -1,0 +1,24 @@
+{
+  "target": "bots/rust-bot-0xnosystem",
+  "languages": [
+    "rust"
+  ],
+  "vulnerability_count": 0,
+  "has_critical": false,
+  "findings": [
+    {
+      "severity": "INFO",
+      "category": "note",
+      "package": "",
+      "description": "Rust dependencies: 31 runtime, 0 build",
+      "details": ""
+    },
+    {
+      "severity": "INFO",
+      "category": "note",
+      "package": "",
+      "description": "cargo audit deferred to Docker sandbox (cargo not on host)",
+      "details": ""
+    }
+  ]
+}
