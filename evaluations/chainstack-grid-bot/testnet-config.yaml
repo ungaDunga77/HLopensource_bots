@@ -1,0 +1,38 @@
+# Chainstack Grid Bot - osbots Phase 4 Testnet Trial
+# Ultra-conservative settings for first 24-48h observation run
+
+name: "osbots_testnet_trial"
+active: true
+
+exchange:
+  type: "hyperliquid"
+  testnet: true  # MUST be true - enforced by osbots security policy
+
+account:
+  max_allocation_pct: 10.0  # $999 * 10% = ~$100 split across 5 levels = $20/level (> HL $10 min notional)
+
+grid:
+  symbol: "BTC"
+  levels: 5  # Minimal grid (bot default: 10) - easier to observe
+
+  price_range:
+    mode: "auto"
+    auto:
+      range_pct: 5.0        # Center of range
+      min_range_pct: 3.0    # Minimum (low volatility floor)
+      max_range_pct: 10.0   # Maximum (high volatility cap)
+
+risk_management:
+  stop_loss_enabled: true  # Enabled for safety (bot default: false)
+  stop_loss_pct: 10.0
+
+  take_profit_enabled: false  # Let it run, we're observing behavior
+
+  max_drawdown_pct: 15.0
+  max_position_size_pct: 20.0  # Tighter cap (bot default: 40%)
+
+  rebalance:
+    price_move_threshold_pct: 10.0  # Slightly tighter than bot default (12%)
+
+monitoring:
+  log_level: "DEBUG"  # Maximum verbosity for first trial

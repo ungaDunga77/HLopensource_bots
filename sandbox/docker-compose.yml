@@ -140,6 +140,37 @@ services:
     volumes:
       - ../evaluations/${BOT_NAME}:/app/logs:rw
 
+  # Chainstack Grid Bot — Phase 4 testnet trial
+  bot-testnet-chainstack:
+    profiles:
+      - testnet
+    build:
+      context: ..
+      dockerfile: sandbox/Dockerfile.python
+      args:
+        BOT_PATH: bots/chainstack-grid-bot
+    networks:
+      - testnet
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: "1.0"
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    env_file:
+      - ../.env
+    environment:
+      - BOT_NAME=chainstack-grid-bot
+      - HYPERLIQUID_TESTNET=true
+    volumes:
+      - ../evaluations/chainstack-grid-bot:/app/logs:rw
+      - ../evaluations/chainstack-grid-bot/testnet-config.yaml:/app/config.yaml:ro
+    command: ["python", "src/run_bot.py", "/app/config.yaml"]
+
   bot-testnet-rust:
     profiles:
       - testnet

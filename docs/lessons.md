@@ -97,3 +97,52 @@
 - **Pydantic + YAML + env var separation is the best config pattern seen**: Drift Arb uses YAML for strategy parameters (checked in), env vars for secrets (never checked in), and Pydantic for validation at startup. This is the cleanest config architecture across all 11 bots evaluated. Better than raw .env (most bots), YAML without validation (Chainstack), or Zod-only (Copy Trading Bot).
 - **pytest with async mocks is feasible for trading bots**: Drift Arb's 637 lines of tests prove that even small trading bots can have meaningful test coverage. Key patterns: mock connectors returning canned order books, mock execution engine verifying rollback behavior, pytest-asyncio for async operations. The other six Tier 2 bots having zero tests is a choice, not a constraint.
 - **Deleted repos can be recovered from forks**: Market Maker (Novus) repo returned 404, but the GitHub API still exposed metadata via the org endpoint, and 18 forks contained the complete codebase. When a repo disappears, check forks before writing it off.
+
+## Phase 4 Testnet Trial Lessons
+
+- **HL testnet faucet requires mainnet activation**: The official drip at `app.hyperliquid-testnet.xyz/drip` returns generic "Something went wrong" unless the address has bridged ≥ $5 USDC to the HL mainnet bridge on Arbitrum. Documented requirement, unhelpful error message.
+- **Agent (API) wallets have their own addresses**: When users create an HL agent wallet via the API menu, they get a separate keypair. The agent's address holds $0 — funds stay in the master (MetaMask) wallet it was approved for. Bots that call `Info()`/`Exchange()` without `account_address` override will query balances at the agent address and see $0. Chainstack bot has this limitation.
+- **SDK 0.22.0 has a testnet spot_meta bug**: `Info.__init__` and `Exchange.__init__` crash on testnet with `IndexError: list index out of range` because the spot universe references token indices that don't exist in the tokens list. Workaround: pass `spot_meta={"universe": [], "tokens": []}` to skip spot-asset mapping. Should be upstreamed.
+- **HL min notional is $10 and strict**: Bot-side precision math must produce orders ≥ $10 notional at every grid level. HL rejects with `"Order must have minimum value of $10. asset=N"`. Grid bots sizing = allocation / levels; higher-priced levels get smaller rounded sizes and hit the floor first. Verify: (size_BTC × price_USD) ≥ 10 for every level.
+- **uv in Docker pattern**: `pip install uv && uv sync --frozen --no-dev` in the install step, then `ENV PATH="/app/.venv/bin:${PATH}"`. Do not use `uv run` at CMD — the PATH export makes plain `python` resolve to the venv. Harmless for non-uv bots (dir doesn't exist).
+- **Docker Compose interpolates all services**: Even when targeting one service, compose validates `${VAR:?...}` interpolation for every service in the file. Workaround: pass `BOT_NAME=dummy BOT_PATH=bots/dummy` for bot-specific services that don't use those vars.
+- **Don't store bot patches in `bots/`**: `bots/` is gitignored and ephemeral. Patches to cloned code are lost on re-clone. Either (a) upstream the fix, (b) keep a patch file in `evaluations/<bot>/patches/`, or (c) bake patches into a bot-specific Dockerfile.
+- **Config via bind-mount works well**: Mount `evaluations/<bot>/testnet-config.yaml` → `/app/config.yaml:ro` keeps configs version-controlled and bot code unmodified. Use this pattern for all bot testnet runs.
+- **Private key vs address confusion**: Private key is 32 bytes / 64 hex chars; address is 20 bytes / 40 hex chars. `eth_account` gives a helpful error when 20 bytes are passed. Users occasionally paste the address thinking it's the key — first-time setup friction.
+
+## Chainstack Grid Bot — 25h Testnet Trial (2026-04-15 → 2026-04-16)
+
+Lessons from the first full testnet trial. Detailed report at `evaluations/chainstack-grid-bot/shadow/report-20260416-final.md`.
+
+**What the bot got wrong (design defects observed in live data)**
+
+- **Fake fill detection** (`engine.py:394-399`): engine calls `on_trade_executed` immediately after `place_order()` returns. Bot's `total_trades` counter is actually "orders submitted." Observed 5 reported vs 2 real fills over 25h. Any grid bot MUST reconcile against `info.user_fills` on a timer and/or subscribe to the WS `userFills` channel.
+- **Placeholder P&L formula** (`basic_grid.py:253-257`): `profit = 0.01 × sell_notional` for every SELL signal. Unrelated to actual buy/sell pairing, ignores fees, funding, partial fills, unrealized. Always compute P&L from `closedPnL - fee` fields on real fills, never from submitted-order metadata.
+- **Broken close-position path** (`adapter.py:450`): calls `self.exchange.order(order_request_dict)` but SDK signature is positional. `TypeError` every time. Combined with `limit_px: None` (invalid on HL — no true market orders). Risk manager fires correctly, fails to enforce. The code path has apparently never been exercised end-to-end. **Any trading bot's close-position / stop-loss paths must have integration tests against testnet.**
+- **Grid never re-plants filled levels**: After 2 buys filled, those 2 price levels went idle permanently. The strategy only reconstructs the grid on rebalance (threshold-based). In sideways markets, this means the grid shrinks to zero. A correct grid bot re-places the opposite-side order at the same level on every fill — that's literally the "grid" mechanic.
+- **No trend filter**: Pure grid bots bleed in trending markets. Observed position-price correlation of −0.52 over 25h (accumulating longs as price fell, which is the grid working as designed but also the problem — no regime detection). A reference price / EMA filter that pauses buys in a confirmed downtrend would have cut drawdown substantially.
+- **Range too wide for vol regime**: Config had ±5% grid width; realized p99 1h excursion was 2.23%. Configured grid was ~5× wider than the realized vol envelope, guaranteeing low fill rate. A grid bot should size range from realized σ (e.g., `range_pct ≈ k × σ_1h` with k=3–6), not from user guesses.
+
+**What the bot got right (worth keeping)**
+
+- **WebSocket + polling as belt-and-suspenders**: WS for `allMids`, periodic polling for account/orders/fills. Survived a ~30s HL 502 outage cleanly.
+- **YAML config with documented defaults and cross-validation**: Edits are cheap and safe. Better than any `.env`-only pattern.
+- **Docker-friendly, read-only FS, 512 MB cap**: Used only 77 MB flat over 25h with 0.08% CPU. Whatever we build should fit the same envelope.
+- **Endpoint router abstraction**: Clean separation of info vs exchange endpoints with health checks.
+
+**What we'd do differently in our own bot**
+
+- **Fill reconciliation as a first-class feature**: Every strategy action keyed off exchange-confirmed fills (from `userFills` WS or `user_fills` poll), never off submission. In-memory grid state is derived, not authoritative.
+- **Re-plant on fill**: On buy fill at level N, immediately place a sell at level N+1 (and vice versa). No need to rebalance the whole grid.
+- **Real P&L accounting**: Sum `closedPnL - fee` from actual fills; mark open inventory to market; report both realized and unrealized. Never a placeholder.
+- **Real risk enforcement tested against testnet before merge**: If close-position isn't exercised in CI, it WILL be broken when needed. Implement it as an IOC limit (HL has no true market) with slippage-adjusted price, not `None`.
+- **Regime awareness**: Trend filter (e.g., 4h EMA slope) that pauses adds to inventory in strong trends. Grid works great in the ~60% of time markets are range-bound; bleeds in the other 40%. Knowing which regime we're in is worth more than any parameter tuning.
+- **Vol-adaptive range**: Recompute `range_pct` from rolling realized σ every N minutes. Static YAML ranges are a trap.
+- **Shadow observability for free**: Build the equivalent of `tools/shadow_collector.py` into the bot itself — SQLite log of mids, fills, equity, grid state — because the data is invaluable for post-mortem and you'll regret not having it.
+
+**Testnet trial infrastructure lessons**
+
+- **Shadow data collection is essential for evaluating bots**: The bot's own reporting (`Total trades`, `total_profit`) was fictional. Without our out-of-process `tools/shadow_collector.py` against HL `user_fills`, we'd have no way to score realized P&L or fill rate. **Every future testnet trial should run with shadow collection attached.** The tool is bot-agnostic — only `--bot-container` changes.
+- **Bot-log parsing needs the full `ts - logger - LEVEL - msg` format**: Loose regex that just looked for `LEVEL` without accounting for the logger-name field left the `level` column NULL on every row. Full format: `^(ts)\s*-\s*(logger)\s*-\s*(LEVEL)\s*-\s*(msg)$`.
+- **WS silent death is real**: A SDK WS subscription can stop firing callbacks without any observable error. Add a liveness watchdog that warns if no callback has fired for >5min.
+- **Grid bots on low-vol BTC produce 2 fills in 25h**: Budget for multi-day trials, not hours. Or use higher-vol assets / tighter grids to get faster data.

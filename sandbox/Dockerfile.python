@@ -2,7 +2,7 @@
 # Build with: docker build --build-arg BOT_PATH=bots/<name> -f sandbox/Dockerfile.python -t bot-<name> .
 # Build with no network: docker build --network=none --build-arg BOT_PATH=bots/<name> -f sandbox/Dockerfile.python -t bot-<name> .
 
-FROM python:3.12-slim
+FROM python:3.13-slim
 
 # Build deps for C extensions (numpy, pandas, etc.)
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -18,14 +18,20 @@ WORKDIR /app
 ARG BOT_PATH
 COPY ${BOT_PATH} /app/
 
-# Install dependencies if requirements.txt exists
-RUN if [ -f requirements.txt ]; then \
+# Install dependencies (priority: uv.lock > requirements.txt > setup.py > pyproject.toml)
+RUN if [ -f uv.lock ]; then \
+        pip install --no-cache-dir uv && \
+        uv sync --frozen --no-dev; \
+    elif [ -f requirements.txt ]; then \
         pip install --no-cache-dir -r requirements.txt; \
     elif [ -f setup.py ]; then \
         pip install --no-cache-dir -e .; \
     elif [ -f pyproject.toml ]; then \
         pip install --no-cache-dir .; \
     fi
+
+# If uv created a venv, add it to PATH so 'python' resolves to the venv
+ENV PATH="/app/.venv/bin:${PATH}"
 
 # Drop to non-root
 USER botuser

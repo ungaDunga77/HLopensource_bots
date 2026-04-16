@@ -39,11 +39,18 @@
 - [x] Comparative analysis of Tier 2
 
 ## Phase 4: Testnet Trials
-- [ ] Set up HL testnet wallet
-- [ ] Obtain testnet tokens (Chainstack faucet)
-- [ ] Run top-scoring bots on testnet in Docker sandbox
-- [ ] Collect performance data (24-48 hour minimum per bot)
-- [ ] Document testnet results
+- [x] Set up HL testnet wallet (MetaMask master, not agent)
+- [x] Obtain testnet tokens (official drip, $999 mock USDC)
+- [x] Add uv support to Dockerfile.python (Python 3.13)
+- [x] Add bot-testnet-chainstack service to docker-compose.yml
+- [x] Patch SDK spot_meta bug in Chainstack adapter
+- [x] Chainstack Grid Bot: live on testnet, 5-level BTC grid placing orders
+- [x] Build shadow-data tooling (tools/shadow_collector.py, tools/shadow_analyze.py) — independent ground-truth P&L from `user_fills` since bot's own reporting is broken (see testnet-results Issues #5, #6)
+- [x] Chainstack Grid Bot: 25h trial complete, 2 fills, report at evaluations/chainstack-grid-bot/shadow/report-20260416-final.md
+- [x] Document Chainstack testnet results
+- [ ] Hummingbot testnet trial
+- [ ] Passivbot testnet trial (needs testnet support patched in)
+- [ ] Reuse shadow-data tooling for Hummingbot + Passivbot trials (collector is bot-agnostic; only `--bot-container` changes)
 
 ## Phase 5: Synthesis
 - [ ] Final rankings with scores
