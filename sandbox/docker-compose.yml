@@ -208,6 +208,7 @@ services:
     volumes:
       - ../evaluations/hummingbot/conf:/app/conf:rw
       - ../evaluations/hummingbot/testnet-config.yml:/app/conf/scripts/testnet-config.yml:ro
+      - ../evaluations/hummingbot/pmm_simple_btc.yml:/app/conf/controllers/pmm_simple_btc.yml:ro
       - ../evaluations/hummingbot/logs:/app/logs:rw
       - ../evaluations/hummingbot/data:/app/data:rw
     command:

@@ -7,3 +7,8 @@ __pycache__/
 bots/*/
 sandbox/data/
 *.log
+.claude/
+.cedit.menu
+# Hummingbot runtime artifacts (encrypted connector yaml + sqlite)
+evaluations/*/conf/
+evaluations/*/data/

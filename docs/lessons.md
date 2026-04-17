@@ -146,3 +146,35 @@ Lessons from the first full testnet trial. Detailed report at `evaluations/chain
 - **Bot-log parsing needs the full `ts - logger - LEVEL - msg` format**: Loose regex that just looked for `LEVEL` without accounting for the logger-name field left the `level` column NULL on every row. Full format: `^(ts)\s*-\s*(logger)\s*-\s*(LEVEL)\s*-\s*(msg)$`.
 - **WS silent death is real**: A SDK WS subscription can stop firing callbacks without any observable error. Add a liveness watchdog that warns if no callback has fired for >5min.
 - **Grid bots on low-vol BTC produce 2 fills in 25h**: Budget for multi-day trials, not hours. Or use higher-vol assets / tighter grids to get faster data.
+
+## Hummingbot (simple_pmm script, HL perp testnet, 2026-04-17)
+
+**Upstream bugs blocking startup** — all in `bots/hummingbot/hummingbot/connector/derivative/hyperliquid_perpetual/hyperliquid_perpetual_derivative.py` unless noted:
+
+- **`split(':')` crash on HIP-3 symbols with >1 colon** (line 983). `deployer, base = full_symbol.split(':')` raises `ValueError: too many values to unpack`. Fix: `split(':', 1)`. Blocks trading-rules init → connector never ready.
+- **Duplicate-symbol handling uses case-sensitive check but stores uppercased value** (lines 987-991). Causes `bidict.ValueDuplicationError` when two DEX markets collide after `.upper()`. Original `_resolve_trading_pair_symbols_duplicate` has the same case mismatch and compounds the bug.
+- **HIP-3 DEX market fetch path is a minefield**. We disabled it entirely (`enable_hip3_markets` default `True` → `False`). Multiple additional bugs lurk here; for single-market perp trading it is not needed.
+- **Sample `scripts/simple_pmm.py` uses `OrderCandidate` on a perpetual exchange** — budget checker crashes with `AttributeError: 'OrderCandidate' object has no attribute 'position_close'`. Fix: `PerpetualOrderCandidate(..., leverage=Decimal("1"), position_close=False)`.
+- **Nonce-collision bug in order submission**: Hummingbot uses the current millisecond as the nonce. When buy+sell are dispatched in the same ms (normal for symmetric PMM), the second one fails with `Invalid nonce: duplicate nonce`. Observed ~50% rejection rate. Did not patch — documented as finding.
+
+**Config traps**:
+
+- `order_amount` on BTC-USD HL perp quantizes to zero if you set < `10^-szDecimals`. For BTC (szDecimals=5) the floor is 0.00001 BTC, but practically you need ≥ `min_notional_size / price` ≈ $10 / $78k ≈ 0.00013. Use 0.001+ with buffer.
+- Default Hummingbot PMM does **not** call `set_leverage()`. HL will apply whatever account-level leverage is configured (was 20x cross on our account by default). A market-making strategy should force 1-3x, not ride exchange defaults.
+
+**HL account / funding gotchas (specific to agent-wallet setups)**:
+
+- **Agent wallets cannot transfer funds between spot and perp.** `usdClassTransfer` signed by the agent returns "Must deposit before performing actions". That action is master-only. Trial setup requires either (a) master moves funds via UI, or (b) master signs a one-shot transfer.
+- **Unified Account Mode is transparent to the legacy `clearinghouseState` endpoint.** Even with unified on, perp `accountValue` reads 0 if no explicit transfer has been made. Hummingbot queries `clearinghouseState` for collateral → budget checker sees $0 → quantizes order to zero. Must disable unified OR do an explicit spot→perp transfer.
+- **An address can exist on both mainnet and testnet.** A key labelled `HYPERLIQUID_TESTNET_PRIVATE_KEY` is indistinguishable from a mainnet key to the wallet layer — the only signal is where funds live. Always verify with a balance probe on both networks before using, and keep testnet key rotation disciplined.
+
+**Strategy-quality finding (`simple_pmm.py` as a PMM)**:
+
+- It's a pedagogical example, not a production strategy. No inventory skew handling, no volatility-adaptive spreads, no leverage control, fixed 30s refresh (picked off by toxic flow). Hummingbot *does* ship better (`pure_market_making`, `avellaneda_market_making`, v2 controllers) — so a fair evaluation of the engine needs at least one of those, not `simple_pmm`.
+- Observed in a ~30-minute smoke run: accumulated a one-sided short position (classic PMM drift when price moves against inventory), realized -$0.02 after flatten. Data on one-sided fill behavior captured in shadow DB `trial-20260417-1818.db`.
+
+**Operational**:
+
+- **Rebuilds are cheap once conda env is cached.** First build ~10-15 min; subsequent rebuilds after a `.py` edit are seconds. Don't be afraid to iterate.
+- **Hot-patching `.py` files via `docker cp` + `docker restart`** works for quick probes (e.g. adding a debug log), but always bake into the image for real runs — containers get recreated and hot-patches vanish.
+- **When a bot stays "not ready" with no error**, patch the readiness log line to dump `status_dict` keys. Silent-hang connectors are common.

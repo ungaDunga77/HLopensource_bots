@@ -55,7 +55,7 @@ def main() -> None:
     Security.secrets_manager = secrets_manager
 
     cfg = HyperliquidPerpetualTestnetConfigMap(
-        hyperliquid_perpetual_testnet_mode="arb_wallet",
+        hyperliquid_perpetual_testnet_mode="api_wallet",
         use_vault=False,
         hyperliquid_perpetual_testnet_address=address,
         hyperliquid_perpetual_testnet_secret_key=private_key,

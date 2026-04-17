@@ -1,0 +1,5 @@
+# Raw SQLite databases are ephemeral research data — do not commit.
+# Commit only the generated markdown reports.
+*.db
+*.db-shm
+*.db-wal

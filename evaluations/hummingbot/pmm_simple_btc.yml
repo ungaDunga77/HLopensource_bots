@@ -1,0 +1,21 @@
+id: pmm_simple_btc_testnet
+controller_type: market_making
+controller_name: pmm_simple
+manual_kill_switch: false
+connector_name: hyperliquid_perpetual_testnet
+trading_pair: BTC-USD
+total_amount_quote: 80
+buy_spreads: [0.001, 0.003]
+sell_spreads: [0.001, 0.003]
+buy_amounts_pct: [0.5, 0.5]
+sell_amounts_pct: [0.5, 0.5]
+executor_refresh_time: 60
+cooldown_time: 15
+leverage: 1
+position_mode: ONEWAY
+stop_loss: 0.02
+take_profit: 0.005
+time_limit: 1800
+take_profit_order_type: LIMIT
+position_rebalance_threshold_pct: 0.02
+skip_rebalance: false
