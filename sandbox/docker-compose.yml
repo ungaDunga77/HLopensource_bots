@@ -171,6 +171,58 @@ services:
       - ../evaluations/chainstack-grid-bot/testnet-config.yaml:/app/config.yaml:ro
     command: ["python", "src/run_bot.py", "/app/config.yaml"]
 
+  # Hummingbot — Phase 4 testnet trial (Simple PMM on hyperliquid_perpetual_testnet)
+  #
+  # One-time conf seed (run before the long-running service):
+  #   mkdir -p evaluations/hummingbot/conf
+  #   docker compose -f sandbox/docker-compose.yml --profile testnet run --rm \
+  #     -v "$PWD/evaluations/hummingbot/conf:/app/conf:rw" \
+  #     -v "$PWD/tools/seed_hummingbot_conf.py:/app/tools/seed_hummingbot_conf.py:ro" \
+  #     --entrypoint "" bot-testnet-hummingbot \
+  #     conda run -n hummingbot python /app/tools/seed_hummingbot_conf.py
+  #
+  # Long-running trial:
+  #   docker compose -f sandbox/docker-compose.yml --profile testnet up bot-testnet-hummingbot
+  bot-testnet-hummingbot:
+    profiles:
+      - testnet
+    build:
+      context: ..
+      dockerfile: sandbox/Dockerfile.hummingbot
+      args:
+        BOT_PATH: bots/hummingbot
+    networks:
+      - testnet
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: "1.0"
+    security_opt:
+      - no-new-privileges:true
+    env_file:
+      - ../.env
+    environment:
+      - HEADLESS_MODE=true
+      - SCRIPT_CONFIG=testnet-config.yml
+    volumes:
+      - ../evaluations/hummingbot/conf:/app/conf:rw
+      - ../evaluations/hummingbot/testnet-config.yml:/app/conf/scripts/testnet-config.yml:ro
+      - ../evaluations/hummingbot/logs:/app/logs:rw
+      - ../evaluations/hummingbot/data:/app/data:rw
+    command:
+      - "conda"
+      - "run"
+      - "--no-capture-output"
+      - "-n"
+      - "hummingbot"
+      - "python"
+      - "bin/hummingbot_quickstart.py"
+      - "--headless"
+      - "true"
+      - "--v2"
+      - "testnet-config.yml"
+
   bot-testnet-rust:
     profiles:
       - testnet

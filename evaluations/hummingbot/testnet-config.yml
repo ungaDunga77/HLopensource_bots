@@ -1,0 +1,11 @@
+script_file_name: simple_pmm.py
+controllers_config: []
+
+exchange: hyperliquid_perpetual_testnet
+trading_pair: BTC-USD
+
+order_amount: 0.0004
+bid_spread: 0.002
+ask_spread: 0.002
+order_refresh_time: 30
+price_type: mid

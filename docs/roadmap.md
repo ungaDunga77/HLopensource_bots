@@ -48,7 +48,8 @@
 - [x] Build shadow-data tooling (tools/shadow_collector.py, tools/shadow_analyze.py) — independent ground-truth P&L from `user_fills` since bot's own reporting is broken (see testnet-results Issues #5, #6)
 - [x] Chainstack Grid Bot: 25h trial complete, 2 fills, report at evaluations/chainstack-grid-bot/shadow/report-20260416-final.md
 - [x] Document Chainstack testnet results
-- [ ] Hummingbot testnet trial
+- [x] Hummingbot testnet trial prep: compose service, seed script, script config
+- [ ] Hummingbot testnet trial: build image, seed conf, smoke test, 24h run
 - [ ] Passivbot testnet trial (needs testnet support patched in)
 - [ ] Reuse shadow-data tooling for Hummingbot + Passivbot trials (collector is bot-agnostic; only `--bot-container` changes)
 
