@@ -49,12 +49,14 @@
 - [x] Chainstack Grid Bot: 25h trial complete, 2 fills, report at evaluations/chainstack-grid-bot/shadow/report-20260416-final.md
 - [x] Document Chainstack testnet results
 - [x] Hummingbot testnet trial prep: compose service, seed script, script config
-- [ ] Hummingbot testnet trial: build image, seed conf, smoke test, 24h run
-- [ ] Passivbot testnet trial (needs testnet support patched in)
-- [ ] Reuse shadow-data tooling for Hummingbot + Passivbot trials (collector is bot-agnostic; only `--bot-container` changes)
+- [x] Hummingbot testnet trial: V1 smoke + V2 `pmm_simple` 5.5h trial — 134 fills, +$3.06 incl. MTM, documented V2 reduce-only position-sync bug
+- [x] Passivbot testnet trial (BTC single-coin, 30.5h across 2 segments): +$0.06 measured / +$0.34 counterfactual, 16 fills, documented 502-outage-kills-bot defect + testnet-support patch
+- [x] Passivbot testnet trial #2 — single-position forager (20.75h, +$2.40, best per-hour return +$0.116/h, 0 defects)
+- [x] Passivbot testnet trial #3 — full forager 3L/1S (15.9h, +$0.96, surfaced insufficient-margin restart loop defect)
+- [x] Reuse shadow-data tooling for Hummingbot + Passivbot trials (collector is bot-agnostic; only `--bot-container` changes)
 
-## Phase 5: Synthesis
-- [ ] Final rankings with scores
-- [ ] Lessons learned compilation
-- [ ] Decision: which bots to build upon / fork / combine
-- [ ] Architecture plan for production bot(s)
+## Phase 5: Synthesis (complete — see `docs/phase5-synthesis.md`)
+- [x] Final rankings with scores — §1
+- [x] Lessons learned compilation — `docs/lessons.md` + `docs/custom-bot-design-notes.md` (pointer in §3)
+- [x] Decision: which bots to build upon / fork / combine — build fresh on HL SDK, vendor small components (§4)
+- [x] Architecture plan for production bot(s) — §5 (modules, startup, loop, strategy, rollout)

@@ -1,0 +1,18 @@
+--- a/freqtrade/exchange/hyperliquid.py
++++ b/freqtrade/exchange/hyperliquid.py
+@@ -75,6 +75,15 @@ class Hyperliquid(Exchange):
+         Query User account Account Type to determine unified account status
+         https://hyperliquid.gitbook.io/hyperliquid-docs/for-developers/api/info-endpoint#query-a-users-abstraction-state
+         """
++        # Enable HL testnet via CCXT sandbox mode when configured.
++        # CCXT's set_sandbox_mode(True) flips both the base URL to api.hyperliquid-testnet.xyz
++        # AND the EIP-712 signing phantom-agent `source` field from "a" to "b".
++        # Controlled by exchange.use_testnet=true in the live config.
++        exchange_cfg = self._config.get("exchange", {})
++        if exchange_cfg.get("use_testnet", False):
++            self._api.set_sandbox_mode(True)
++            logger.info("Hyperliquid testnet mode enabled via CCXT sandbox_mode.")
++
+         try:
+             if self.trading_mode == TradingMode.FUTURES and not self._config["dry_run"]:
+                 # Determine account status

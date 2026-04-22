@@ -21,7 +21,22 @@
 | 15 | Bybit-HL Arb | Jackhuang166/hyberliquid-arbitrage | Rust | Price gap tracking | 3 | Not started |
 | 16 | Rust Bot (RUBE40) | RUBE40/hyperliquid-trading-bot-rust | Rust | Multi-market perps | 3 | Not started |
 | 17 | Rust Bot (0xTan) | 0xTan1319/hyperliquid-trading-bot-rust | Rust | Automated trading | 3 | Not started |
-| 18 | Telegram Info Bot | aggstam/telegram-bot-hyperliquid | Python | Info retrieval (not trading) | 3 | Not started |
+| 18 | Telegram Info Bot | aggstam/telegram-bot-hyperliquid | Python | Info retrieval (not trading) | 3 | Skipped — not a trading bot |
+
+### Phase 5 expanded-search batch (2026-04-21)
+
+| # | Name | Repo | Lang | Strategy / Purpose | Score |
+|---|------|------|------|--------------------|-------|
+| 19 | **hypersdk** | infinitefield/hypersdk | Rust | Community Rust SDK (full HIP-3/HIP-4/multisig/EVM) | **4.34** |
+| 20 | **go-hyperliquid** | sonirico/go-hyperliquid | Go | Community Go SDK | **3.95** |
+| 21 | **freqtrade-titouan** | titouannwtt/freqtrade-fork | Python | Freqtrade HL fork with liquidation detection + hyperopt samplers | **3.75** |
+| 22 | **XEMM Pacifica-HL** | djienne/XEMM_CROSS_EXCHANGE_MARKET_MAKING_PACIFICA_HYPERLIQUID | Rust | Cross-exchange MM: make on Pacifica, hedge on HL | **3.53** |
+| 23 | OctoBot MM | Drakkar-Software/OctoBot-Market-Making | Python | MM plugin for OctoBot framework | 2.86 |
+| 24 | Hyper-Alpha-Arena | HammerGPT/Hyper-Alpha-Arena | Python | LLM multi-agent trading platform | 2.81 |
+| 25 | Nova funding hub | SoYuCry/Nova_funding_hub | Python | Multi-DEX funding-rate aggregator (no execution) | 2.80 |
+| 26 | Avellaneda MM | djienne/AVELLANEDA_MARKET_MAKING_FREQTRADE | Python | Avellaneda-Stoikov MM on Freqtrade | 2.59 |
+
+Tier 3 bots skipped with written rationale (see `docs/phase5-synthesis.md` §1): AI Trading Bot, Hypercopy-xyz, LSTM Bot, AI Crypto Bot, Bybit-HL Arb, Rust Bot (RUBE40), Rust Bot (0xTan), Telegram Info Bot. Reasons: hype-driven wrappers, duplicates of already-reviewed patterns (3rd copy trading, 3rd/4th Rust bot), or non-trading (Telegram info).
 
 **Reference**: hyperliquid-dex/hyperliquid-python-sdk (official SDK, baseline) — **Evaluated 2026-03-29** | Stars: 1,489 | Forks: 512 | MIT | v0.22.0 (Feb 2026) | Score: 3.73
 

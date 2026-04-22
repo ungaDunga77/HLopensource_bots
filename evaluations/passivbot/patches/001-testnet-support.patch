@@ -1,0 +1,55 @@
+Minimal testnet support patch for Passivbot Hyperliquid connector.
+
+Target: bots/passivbot/src/exchanges/hyperliquid.py, create_ccxt_sessions()
+
+Passivbot has no testnet support — `create_ccxt_sessions()` always instantiates
+CCXT HL clients with default (mainnet) URLs and mainnet EIP-712 signing. CCXT
+itself supports HL sandbox mode via `set_sandbox_mode(True)`, which swaps URLs
+to `api.hyperliquid-testnet.xyz` AND flips the phantom-agent `source` field
+from "a" to "b" so testnet rejects mainnet-format signatures correctly.
+
+Reading `use_testnet` from the per-user `api-keys.json` entry keeps the patch
+minimal and scoped: only users that explicitly opt in get testnet routing.
+
+--- a/src/exchanges/hyperliquid.py
++++ b/src/exchanges/hyperliquid.py
+@@ -56,6 +56,7 @@ class HyperliquidBot(...):
+     def create_ccxt_sessions(self):
+         creds = {
+             "walletAddress": self.user_info["wallet_address"],
+             "privateKey": self.user_info["private_key"],
+         }
++        use_testnet = bool(self.user_info.get("use_testnet", False))
+         # Configure fetchMarkets to include HIP-3 stock perps from TradeXYZ
+         fetch_markets_config = {
+             "types": ["swap", "hip3"],  # Include HIP-3 markets
+             "hip3": {
+                 "dex": ["xyz"],  # TradeXYZ DEX for stock perps (TSLA, NVDA, etc.)
+             },
+         }
+         if self.ws_enabled:
+             self.ccp = getattr(ccxt_pro, self.exchange)(creds)
+             self.ccp.options.update(self._build_ccxt_options())
+             self.ccp.options["defaultType"] = "swap"
+             self.ccp.options["fetchMarkets"] = fetch_markets_config
++            if use_testnet:
++                self.ccp.set_sandbox_mode(True)
+             self._apply_endpoint_override(self.ccp)
+         elif self.endpoint_override:
+             logging.info("Skipping Hyperliquid websocket session due to custom endpoint override.")
+         self.cca = getattr(ccxt_async, self.exchange)(creds)
+         self.cca.options.update(self._build_ccxt_options())
+         self.cca.options["defaultType"] = "swap"
+         self.cca.options["fetchMarkets"] = fetch_markets_config
++        if use_testnet:
++            self.cca.set_sandbox_mode(True)
++            logging.info("Hyperliquid testnet mode enabled for user %s", self.user)
+         self._apply_endpoint_override(self.cca)
+
+Finding: Passivbot's complete lack of testnet support is its #1 security concern
+per evaluation.md. This patch is ~8 lines, upstream-trivial. The fact that it
+hasn't been added upstream despite HL's testnet being well-documented and
+supported by CCXT for over a year is a signal about the bot's HL-integration
+priorities — multi-exchange breadth is clearly prioritized over HL-native
+safety. Users running Passivbot on HL today have no way to sandbox-test a
+strategy; they go straight to mainnet.

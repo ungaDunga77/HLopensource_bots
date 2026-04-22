@@ -147,6 +147,139 @@ Lessons from the first full testnet trial. Detailed report at `evaluations/chain
 - **WS silent death is real**: A SDK WS subscription can stop firing callbacks without any observable error. Add a liveness watchdog that warns if no callback has fired for >5min.
 - **Grid bots on low-vol BTC produce 2 fills in 25h**: Budget for multi-day trials, not hours. Or use higher-vol assets / tighter grids to get faster data.
 
+## Passivbot V5 (HL perp testnet, 2026-04-18 → 2026-04-19, 30.5h total)
+
+**Trial window (both segments are weekend trading)**:
+- **Segment 1**: Sat 2026-04-18 01:40 UTC → Sat 07:11 UTC (5.5h, crashed on HL 502)
+- **Segment 2**: Sat 2026-04-18 13:21 UTC → Sun 2026-04-19 14:07 UTC (25h, stopped manually)
+- **No weekday data**. Crypto runs 24/7 but maker fill rates and realized vol are measurably lower on weekends — results should be treated as a *weekend-regime* sample, not a general steady-state estimate.
+
+Config: BTC long only, 1x leverage, TWEL 50% (~$100 max exposure), grid strategy from `configs/examples/btc_long.json` with testnet overrides (`evaluations/passivbot/testnet-config.json`). Agent-wallet auth via patched connector. Shadow DB: `evaluations/passivbot/shadow/trial-20260418-0149.db`.
+
+**Required patch to run at all**: Passivbot has no testnet support upstream. Added `set_sandbox_mode(True)` call gated on `api-keys.json` `use_testnet: true` field (~8 lines, `evaluations/passivbot/patches/001-testnet-support.patch`). The fact that this is a ~10-minute fix not upstreamed despite CCXT's built-in HL sandbox support (which flips both the URL and the EIP-712 `source` field from `"a"` to `"b"`) is itself a finding about the bot's HL-integration priorities.
+
+**What the 30.5h data showed (combined both segments)**:
+
+- **Final account**: $201.79 → $201.85 after a forced flatten at stop time. **Net +$0.06** as measured; **+$0.34 if we credit the counterfactual** where the last open long would have closed at its grid target ($76,786) instead of being force-closed at market ($75,980, −$0.23 realized on that position).
+- **16 fills total** (7 completed round-trips, 9 opens, 7 closes); 15 maker / 1 taker.
+- **Fees**: $0.048 = 1.71 bps of notional, consuming ~14% of gross round-trip PnL. Close to HL mainnet maker rate (1.5 bps). Not a profitability constraint.
+- **Churn**: 49 orders posted, 3:1 cancel-to-fill. Free on HL, no throttling.
+- **Naive annualized**: 8.7% as-measured, ~16% counterfactual. **Weekend-only sample**, both numbers should be treated with wide error bars.
+
+**Segments behaved very differently**:
+
+- **Segment 1 (Sat 04:14–06:22 active, 2h8m of trading in 5.5h uptime)** — BTC oscillated $77,547–$78,000 in the grid sweet spot. **6 clean round-trips, all profitable, +$0.258 net (11.5 bps on notional, $0.047/hour uptime)**. The "ideal regime" for grid. 62% idle.
+- **Segment 2 (Sat 13:23 → Sun 14:07, 25h uptime, 99 min of active trading)** — BTC drifted down 1.7% from $76,405 to $75,980 over the window. **Only 1 round-trip + 1 unwound-at-loss position, +$0.037 net from fills, ~93% idle**. Representative of the "drift regime" where grid gets stuck accumulating a one-sided long into falling price.
+
+**What the 5.5h segment-1 data showed**:
+
+- **Patient entry**: 2h27m of no orders after startup while the bot waited for BTC to reach `EMA * (1 - entry_initial_ema_dist)` trigger. First order placed at 02:07 UTC as BTC dipped to $77,716. Good discipline — no forced fills.
+- **Grid activation**: When BTC hit ~$77,568 at 04:14, bot filled 3 entries totaling 0.00052 BTC in <20s, then cycled through 5 round-trips in ~80s: buys at 77,547–77,568 / sells at 77,750–77,770. **Classic grid scalping behavior, exactly as designed.**
+- **Fills**: 13 new fills (42 orders posted, 33 cancelled/replaced). Realized PnL **+$0.29 USDT** on a $201.79 account over ~5.5h. Gross edge ~26 bps per round-trip, net after fees similar to Hummingbot's ~12 bps.
+- **Deeper grid legs never triggered**: entries at $74,558 (-4%) and $70,464 (-9%) sat dormant because BTC stayed in the $76–78k range. This is grid working correctly — they're safety nets, not primary.
+- **Reposts dominate order churn**: 33 cancels vs 13 fills. Bot continuously repositions entry/close orders as EMAs and price shift, even when spread movement is tiny (`Δp=0.0013%`, `Δq=46.2%` style reposts). Rate-limit friendly (no throttling observed), but noisy. A more conservative `price_distance_threshold` or repost hysteresis would reduce this.
+
+**Robustness finding — Passivbot does not survive HL 502 outages**:
+
+- 06:56 UTC: HL testnet returned `502 Bad Gateway` from nginx on `POST /info`.
+- Bot threw `ccxt.base.errors.ExchangeNotAvailable` in the main execution loop.
+- Error handler caught and "retried" but repeatedly re-fetched through the same `_get_positions_and_balance_cached` wrapper that re-raised the cached exception (`hyperliquid.py:417 raise self._hl_cached_result`) — the cached-result pattern **poisoned every subsequent call for the window of the outage**.
+- 200+ identical error traces in 14 minutes, then the container exited with code 0 at 07:10.
+- **Compare to Chainstack Grid Bot**: survived a ~30s HL 502 during its 25h trial cleanly. Passivbot is less resilient.
+- Upstream fix direction: either (a) invalidate the cached error on TTL expiry shorter than the backoff, (b) add explicit 5xx retry-with-backoff at the CCXT wrapper layer, or (c) catch `ExchangeNotAvailable` in the main loop and sleep 30s instead of exiting. The current path conflates "auth failure" (permanent) with "5xx" (transient) under the same `ExchangeNotAvailable` class.
+
+**Operational gotchas**:
+
+- **Image-copied source means runtime patches need bind-mounts**: the Phase 3 `bot-passivbot:latest` image was built with `COPY bots/passivbot /app/`, so our `set_sandbox_mode` patch lives in the gitignored workspace tree but isn't in the image. Compose bind-mount `../bots/passivbot/src/exchanges/hyperliquid.py:/app/src/exchanges/hyperliquid.py:ro` fixes this without a 10-minute Rust rebuild.
+- **Passivbot needs writable `caches/` and `backtests/` dirs even in live mode** — initial run crashed with `PermissionError` because non-root `botuser` couldn't write under root-owned `/app`. Bind-mount host dirs pre-chowned to uid 1000 to fix.
+- **148 historical fills were auto-loaded at startup** from the 4-day HL user-fills history. Good reconciliation pattern — Passivbot's `FillEventsManager` queries `/userFills` at boot and catches up. But: these fills were from the Hummingbot trials, not Passivbot's. The bot happily attributed them into its own PnL tracking (`pnl=+2.63 USDT`). **Fill attribution is by account, not by bot instance** — expected but worth noting if you ever run multiple bots serially on the same account.
+- **TWEL / `total_wallet_exposure_limit` terminology is dangerous**: the `btc_long.json` example ships with TWEL **4.36** (436% notional vs balance, implying ~4–5x leverage equivalent). Without understanding that field, a fresh user running "the example config" would silently be 4x leveraged. Our config uses 0.5 (50%) which is the correct "conservative" setting.
+- **Log cadence is deliberately quiet**: health summary every 15 min, unstuck status every 5 min. Silence is not a hang; don't restart on perceived hung loops.
+
+**Entry/exit tags are self-documenting and useful for post-hoc analysis**: every order carries a `tag` like `entry_initial_normal_long`, `entry_grid_normal_long`, `entry_grid_cropped_long`, `close_grid_long`, `close_trailing_long`, `unstuck_close_long`. This makes reconstructing bot intent from fills straightforward. Adopt this pattern.
+
+---
+
+## Passivbot Forager Trial (HL perp testnet, 2026-04-19 → 2026-04-20, 20.75h)
+
+**Forager mode is the reason to run Passivbot.** 10-coin approved pool, `n_positions: 1`, long-only, same per-trade sizing as the static BTC trial. Net +$2.40 in 20.75h vs BTC's +$0.06 in 30.5h — **58× the per-hour return** on matched sizing. The delta is entirely from coin selection: ETH's log_range EMA (16-span) was 2–4× BTC's for almost the whole window, so forager parked on ETH and harvested a tight grid cycle.
+
+**Selection mechanics observed**:
+- Ranking cycle runs every ~5 min on two EMAs: volume (365-span) and log_range (16-span).
+- `[mode] added long.X: normal (forager slot 1/1)` + `[mode] removed long.Y: graceful_stop` is the full swap atomic in logs.
+- `auto_gs: true` prevents swap-while-in-position — outgoing coin only retires once its position closes. This is why the bot held ETH continuously for 18h before rotating.
+- Finally saw 6 ETH↔BTC rotations in a 40-min window at T+19h when log_range scores converged.
+
+**Selection-vs-execution tension**: 0 of 88 fills were on BTC despite 3 rotations **to** BTC. Price never touched the entry ladder before the bot rotated back. On a 5-min ranking cadence with ~60s entry-order retire cycles, short rotations produce no fills on the new coin. Implication: forager's per-coin-contribution is highly bimodal — the "chosen" coin gets most/all fills; late rotations are near-free swaps.
+
+**DCA grid recovery worked exactly as designed** (the Martingale scenario): ETH dropped 4% and hit the $2272 grid level, position scaled to 49% WEL ($21 → $42 notional) with averaged entry $2308.61. The averaged pile closed at $2316–$2319 over the next ~40 min for a combined +$0.47. This is the strategy's core value proposition; confirmed it delivers on real HL order flow.
+
+**Reduce-only race reproduces at ~0.1/hour**. Same defect as Trial #1: 2 `InvalidOrder: Reduce only order would increase position` errors in 20h, both self-recovered via the close-grid replace logic. The defect rate is low enough that the 10-errors-per-hour circuit breaker has plenty of headroom in normal conditions but could be eroded in a high-frequency regime.
+
+**WS reconnect cadence is a steady ~1/10min on HL testnet**. 113 reconnects in 20h. Every one 1s-recovered via CCXT Pro with zero trading impact. Pattern is too regular to be instability — it's an HL testnet keepalive/idle-timeout. Don't alert on it. Worth confirming whether mainnet exhibits the same cadence.
+
+**Scaled projection**: $1000-account-equivalent ≈ +$11.90 in 20h (+1.19%), or roughly **+$13.8/day / +$413/month** if the ETH volatility regime holds. This is testnet with no real-depth slippage; treat as optimistic.
+
+**Pending Trial #3**: enable shorts, raise `n_positions` to 3–5, keep the 10-coin pool. Question to answer: does multi-position forager compound the single-coin selection gain, or does TWEL competition dilute it?
+
+---
+
+## Passivbot Full Forager Trial (HL perp testnet, 2026-04-20 → 2026-04-21, 15.9h)
+
+**Full forager config — 3L + 1S, both sides enabled, same 10-coin pool.** Net +$0.96 (+0.47%) in 15.9h → **+$0.060/h, roughly half of single-position forager's +$0.116/h.** Multi-position + shorts did not compound the gain; it diluted it. The full-feature config also surfaced a new Passivbot defect (below) that makes high-concurrent-position configurations impractical to run on HL as shipped.
+
+**Critical defect: insufficient-margin restart loop.** When Passivbot holds all its configured slots full AND tries to maintain the full DCA ladder per position, its internal margin calculation disagrees with HL's. HL rejects the DCA orders as `InsufficientFunds: Insufficient margin to place order. asset=N`. The 10-errors-per-hour circuit breaker trips in ~4 min, triggers `RestartBotException`, bot restarts, immediately hits the same error cascade, restarts again. Observed: 20+ internal restarts + 2 container-level restarts in ~3.5 hours, during which the bot posted 0 fills and accumulated unrealized drawdown. Only reduce-only (close_grid) orders succeeded, because they don't consume margin. **Root cause (inferred): Passivbot computes per-position WE against a snapshotted balance and doesn't account for cross-margin overlap across open positions at order submission time.** `filter_by_min_effective_cost: true` worsens this by bumping entry sizes to meet HL's $10 minimum, which can push combined exposure above available margin once all slots fill simultaneously.
+
+**Safe Passivbot-on-HL config: keep `long.n_positions + short.n_positions ≤ 2`**, or reduce TWEL below 0.5 combined. Single-position forager (Trial #2 config) is the sweet spot: best per-hour return across three trials, zero defects triggered. The shipped Passivbot documentation doesn't mention this boundary.
+
+**Short code path is functional in isolation.** 47 short fills across ETH (45) + BTC (2 rotations). Same PnL profile as longs (~+$0.032 per $12 notional). No short-specific bugs — the mechanics of entry_grid_normal_short / close_grid_short / entry_grid_cropped_short all fire correctly. **Recommendation when running shorts**: mirror the long params rather than using the shipped short template (which ships effectively disabled with `entry_initial_qty_pct: 0.004`).
+
+**Cross-side forager deadlock**: observed ~3h stretch at T+7h where bot held an underwater BTC short while 3 long slots sat idle because BTC's log_range (short-side ranking signal) exceeded all long candidates' log_range scores. The long side never promoted a candidate to `normal` mode. Multi-position forager with `auto_gs: true` can starve one side indefinitely when the market's volatility profile favors the other. Not a bug — a direct consequence of independent per-side ranking + `auto_gs` refusing to rotate in-position slots.
+
+**Fill rate is higher with multi-position** (101 fills in 15.9h vs 88 in 20.75h → 6.4 fills/h vs 4.2 fills/h) but **notional churned is lower** ($1,051 vs $1,538), which means each position is smaller and each round-trip captures less profit. With per-position WE sliced 3× smaller for Trial #3 longs (0.75 TWEL / 3 slots = 0.25 WE per slot vs Trial #2's 0.5 WE per single slot), individual wins dropped from ~$0.053 to ~$0.027.
+
+**Coin diversity worked, but the "best coin" still dominated**: 6 coins filled (vs 1 in Trial #2), but ETH alone had 78 of 101 fills (77%). The non-ETH coins contributed $0.27 of $1.35 total PnL (20%). Forager's selection logic does rotate, but ETH's volatility profile was so dominant over the trial window that the diversification effect was marginal.
+
+**Docker `restart: unless-stopped` masks internal instability.** Trial #3 showed that Passivbot's `RestartBotException` + Docker restart policy create a *soft-recovery* loop — the bot thrashes internally but stays technically "running" as far as container status is concerned. Container uptime alone is a poor health signal for Passivbot; monitor the `[health] uptime=` log line (which resets on internal restart) or `errors=N/10` trend instead.
+
+**Agent-wallet gotcha for wrap-up scripts.** Passivbot's `api-keys.json` for testnet contains an agent private key (the wallet address derived from the private key is DIFFERENT from the `wallet_address` field which is the main account). To operate on the account via the HL SDK, construct `Exchange(agent_wallet, account_address=main_addr, ...)` — the main address holds funds, the agent key just signs. The `check_testnet.py` script also derives its own wallet from `.env` which uses a different testnet account entirely (main-testnet address `0x3BaC...458C`), so its account-state output is for a different wallet than Passivbot trades under. Keep these mental models separate.
+
+---
+
+## Hummingbot V2 `pmm_simple` controller (HL perp testnet, 2026-04-17 → 2026-04-18)
+
+Config: BTC-USD, $80 notional budget across 2 spread levels (10/30 bps each side), 1x leverage, SL 200 bps (MARKET), TP 50 bps (LIMIT), time_limit 1800s, refresh 60s. Shadow DB: `trial-v2-20260417-1908.db`. Bot log: `logs_testnet-config.log`.
+
+**What the data showed (first 5.5h, after which executor slots poisoned themselves):**
+
+- 134 fills (68 buys / 66 sells), 24/hr, all BTC-USD, avg trade $16.78 notional
+- Total notional churned: $2,248; gross edge captured: ~14 bps on notional
+- Fees paid: $0.44 (~2 bps); realized PnL (matched round-trips): **$2.15**
+- Net inventory: −0.002 BTC (short drift from stuck executors), MTM −$158 at close
+- Total PnL incl. inventory MTM: $3.06, or ~14 bps on notional
+- Price regime: 122 bps intraday range — friendly, not a stress test
+
+Extrapolation to a $1,000 account at same rotation rate: ~$117/day gross ceiling in a good regime. After realistic haircuts (mainnet adverse selection ~50–70% of gross, real HL maker fees 3 bps RT vs 2 bps observed, inventory drift, executor-bug throttle): expected **$3–10/day steady-state, −$30 to −$200 on trending days**. Strategy mechanically works; account size + single-pair PMM is the binding constraint, not fee math.
+
+**V2 PositionExecutor ↔ HL connector position-sync bug**:
+
+- After ~5.5h, 15,303 `Reduce only order would increase position. asset=3` rejections and 5,006 `Take profit order failed` events; multiple executors hit `Retrying 10/10` and stopped reopening → bot "alive" but not placing new orders.
+- Root cause: V2 `pmm_simple` submits take-profits as reduce-only LIMIT orders. Hummingbot's internal position state lags HL's actual state (settlement delay between fill event and position-snapshot refresh). When the executor thinks it's long and submits a reduce-only SELL, HL's view is already flat (or the opposite sign) → rejection.
+- V2 masks the V1 nonce-collision bug via retry, but this reduce-only lag is a new, V2-specific defect introduced by the TripleBarrier exit logic.
+- Upstream fix direction: reconcile executor position state against HL's `clearinghouseState` before every reduce-only submit, or retry reduce-only rejections by re-querying position first, or allow TP as a regular LIMIT when reduce-only would fail.
+
+**MQTT bridge noise**: Hummingbot tries to connect to a local MQTT broker every 10s by default. 14 MB of log file is mostly "Reconnecting in 5.0 seconds". Disable via `mqtt_bridge.mqtt_autostart: False` in `conf_client.yml` or run with `--no-mqtt` equivalent. Not a bug, but operationally noisy.
+
+**Triple Barrier (`stop_loss: 0.02`, `take_profit: 0.005`) is asymmetric 1:4 risk/reward** — needs ~80% TP-hit rate just to break even on matched exits. For a PMM where entries are maker quotes at the spread, this is generally defensible (spread capture should hit TP far more often than SL), but the asymmetry is not obviously correct and deserves sensitivity analysis before any mainnet use.
+
+**Leverage default**: Hummingbot does not call `set_leverage()` on startup — inherits whatever HL account has (we pre-set 1x manually). V2 `leverage` field in the YAML only affects local budget sizing, not exchange-side leverage. **Safety concern**: fresh deployments can silently run at cross-20x if the account was left that way.
+
+**Strategy coverage gap**: We tested V1 `simple_pmm` (smoke only, bug-surface) and V2 `pmm_simple` (5.5h trial, this run). Hummingbot ships ~15 other strategies applicable to HL — `perpetual_market_making` (V1), `avellaneda_market_making` (V1), `cross_exchange_market_making` (V1), V2 controllers `pmm_dynamic`, `dman_v3`, `bollinger_v1`, `macd_bb_v1`, `supertrend_v1`, `stat_arb`, `xemm_multiple_levels`. Current data supports a verdict on the *bot* and *the PMM family*, not on the strategy framework as a whole. XEMM in particular is unexplored and would have a very different risk profile (hedges inventory externally).
+
+**Verdict**: Scale headline ("lots of trades, tiny P&L") is a *capital* story, not a *strategy* story. Engineering verdict on Hummingbot-on-HL is "works with documented defects" — the V1 nonce collision and V2 position-sync bug are both real and both have clear upstream fixes.
+
+---
+
 ## Hummingbot (simple_pmm script, HL perp testnet, 2026-04-17)
 
 **Upstream bugs blocking startup** — all in `bots/hummingbot/hummingbot/connector/derivative/hyperliquid_perpetual/hyperliquid_perpetual_derivative.py` unless noted:
@@ -178,3 +311,34 @@ Lessons from the first full testnet trial. Detailed report at `evaluations/chain
 - **Rebuilds are cheap once conda env is cached.** First build ~10-15 min; subsequent rebuilds after a `.py` edit are seconds. Don't be afraid to iterate.
 - **Hot-patching `.py` files via `docker cp` + `docker restart`** works for quick probes (e.g. adding a debug log), but always bake into the image for real runs — containers get recreated and hot-patches vanish.
 - **When a bot stays "not ready" with no error**, patch the readiness log line to dump `status_dict` keys. Silent-hang connectors are common.
+
+---
+
+## Freqtrade-titouan Trial A (HL perp testnet, 2026-04-21 → 2026-04-22, ~24h)
+
+**External-close path works; signal-driven entries on HL testnet are hard to fill with passive limits.**
+
+**The target-test — `_handle_external_close` — fire-validated.** Force-closed Freqtrade's tracked Trade id=1 via the HL SDK (`market_close`). Freqtrade detected the missing position within 10 seconds: logged `Not enough BTC in wallet to exit` (benign), then `LIMIT_SELL fulfilled ... Marking Trade(id=1) as closed as the trade is fulfilled and found no open orders for it`. SQLAlchemy rollback+refresh kept the DB consistent — no phantom open-trade row. **This is the pattern we're adopting verbatim for our custom bot's position-reconciliation layer.**
+
+**Testnet enablement pattern: override `_init_ccxt` in the HL exchange subclass to call `set_sandbox_mode(True)` when `exchange.use_testnet=true`.** Same patch shape as Passivbot. `set_sandbox_mode` flips both the URL AND the EIP-712 `source` field (`"a"` → `"b"`), so it's the single-call right way to do this. Putting the call in `additional_exchange_init` is too late — markets get loaded from mainnet first. Must override `_init_ccxt`.
+
+**Freqtrade's market boot is slow on HL: ~4.5 min per container start** because `fetch_market_leverage_tiers` makes ~500 sequential REST calls across all HL perp markets. The fork exposes a `_ft_has['uses_leverage_tiers'] = False` flag in its HL module — but Freqtrade core never reads it. Upstream PR candidate. For our bot: skip per-market leverage tier loading entirely; HL's cross/isolated margin model doesn't need it.
+
+**Config schema strictness bites when disabling optional sections.** Freqtrade's JSON schema requires all sub-fields of `telegram` and `api_server` even when `enabled: false`. Couldn't just write `{"enabled": false}` — had to omit the section entirely. Worth knowing if we ever ship a Pydantic config for our bot: either `exclude_unset=True` at serialization or accept missing required fields when the parent `enabled=False`.
+
+**HL testnet WS cadence reconfirmed: ~2 `continuously_async_watch_ohlcv` errors per 30-min window.** All self-recover in <2s via Freqtrade's built-in reconnect. Now seen in three different frameworks (Hummingbot, Passivbot, Freqtrade) → firmly testnet-side behavior, not bot-defect. Production WS layer must tolerate this cadence without alerting.
+
+**Passive limit entries in a trending market don't fill.** Phase 2 of the trial (moderate RSI<45 + EMA_fast > EMA_slow strategy) fired 1 entry signal in 12h of uptrending BTC. The limit at `entry_pricing.price_side: same` (best-bid) hit the 5-min `unfilledtimeout` before crossing → cancelled. This is a Freqtrade-on-HL pairing issue, not a fork defect: on 5-min candles with passive limits, directional markets fill poorly. A real production Freqtrade setup on HL would need `price_side: other` (cross the spread) or a longer unfilledtimeout — both have costs. Our custom bot will replant limits against the opposite side of the book to avoid this.
+
+**`no-new-privileges:true` + Freqtrade's sudo-chown entrypoint.** The Freqtrade Dockerfile's entrypoint tries `sudo chown` to fix bind-mount ownership. Our hardened sandbox blocks this with `no-new-privileges: true` in compose, producing a warning but no hard failure. The real cost is the leverage-tiers cache in `user_data/` never persists across container restarts, forcing the 4.5-min boot every time. Either pre-chown host-side or accept the cost. We accepted it — two boots over the 24h trial.
+
+**Fill summary (whole trial, Phase 1 + 2):** 6 fills (3 opens + 3 closes), closedPnl +$0.099, fees $0.017 (2.50 bps of $68 notional, 67% maker). Net equity change: +$0.080. Data volume is small — strategy was built as a smoke test, not a profit measurement — so treat the PnL as a sanity check, not a signal.
+
+**What we learned about the fork's claimed features, live:**
+- ✅ `_handle_external_close` works.
+- ⏳ `fetch_liquidation_fills` (liquidation detection) — code inspection only; couldn't generate a real cascade on testnet.
+- ⏳ `TrendRegularityFilter` — requires a strategy that USES it, and no such strategy ships with the fork; code-inspection-validated only.
+- ⏳ Custom hyperopt loss + 6 Optuna samplers — backtesting-only, not live-observable.
+- ⏳ Liquidation-price closed-form formula — code-validated; to fire-validate, we'd need to push a position near liquidation on testnet, which requires extreme leverage.
+
+**The fork's score stands at 3.75.** Trial confirmed the patterns we want to adopt and surfaced operational knowledge (boot time, config quirks, passive-limit fill issues) that will inform our own bot's design.

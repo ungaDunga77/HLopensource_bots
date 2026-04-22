@@ -1,0 +1,63 @@
+{
+  "_note": "Freqtrade-titouan Phase 5 Trial A \u2014 HL testnet smoke. BTC-USDC perp, 1x leverage, tiny stakes. Tests HL exchange module + _handle_external_close path. Testnet enabled via the patched hyperliquid.py (exchange.use_testnet=true).",
+  "max_open_trades": 1,
+  "stake_currency": "USDC",
+  "stake_amount": 12,
+  "tradable_balance_ratio": 0.1,
+  "fiat_display_currency": "USD",
+  "dry_run": false,
+  "dry_run_wallet": 200,
+  "cancel_open_orders_on_exit": true,
+  "trading_mode": "futures",
+  "margin_mode": "isolated",
+  "timeframe": "5m",
+  "strategy": "HLSmokeStrategy",
+  "bot_name": "freqtrade_titouan_trial_a",
+  "db_url": "sqlite:///user_data/database/trial_a.sqlite",
+  "initial_state": "running",
+  "unfilledtimeout": {
+    "entry": 5,
+    "exit": 5,
+    "exit_timeout_count": 0,
+    "unit": "minutes"
+  },
+  "entry_pricing": {
+    "price_side": "same",
+    "use_order_book": true,
+    "order_book_top": 1,
+    "price_last_balance": 0.0,
+    "check_depth_of_market": {
+      "enabled": false,
+      "bids_to_ask_delta": 1
+    }
+  },
+  "exit_pricing": {
+    "price_side": "same",
+    "use_order_book": true,
+    "order_book_top": 1
+  },
+  "exchange": {
+    "name": "hyperliquid",
+    "use_testnet": true,
+    "wallet_address": "__FILLED_AT_RUNTIME__",
+    "private_key": "__FILLED_AT_RUNTIME__",
+    "ccxt_config": {},
+    "ccxt_async_config": {
+      "enableRateLimit": true,
+      "rateLimit": 1000
+    },
+    "pair_whitelist": [
+      "BTC/USDC:USDC"
+    ],
+    "pair_blacklist": [],
+    "enable_ws": true
+  },
+  "pairlists": [
+    {
+      "method": "StaticPairList"
+    }
+  ],
+  "internals": {
+    "process_throttle_secs": 5
+  }
+}

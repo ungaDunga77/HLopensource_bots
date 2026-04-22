@@ -12,3 +12,14 @@ sandbox/data/
 # Hummingbot runtime artifacts (encrypted connector yaml + sqlite)
 evaluations/*/conf/
 evaluations/*/data/
+
+# Passivbot runtime artifacts — never commit credentials or shadow DBs
+evaluations/passivbot/api-keys.json
+evaluations/*/logs/
+evaluations/passivbot/shadow/*.db
+evaluations/passivbot/shadow/*.db-*
+
+# Freqtrade-titouan trial runtime artifacts — contains private key, never commit
+evaluations/freqtrade-titouan/testnet-config-live.json
+evaluations/freqtrade-titouan/user_data/
+evaluations/freqtrade-titouan/database/

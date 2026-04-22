@@ -90,3 +90,48 @@ Hummingbot's HL connector is the strongest evaluated bot, scoring 4.18 — the f
 - Port `_NonceManager` from spot auth to perp auth (simple fix, high impact)
 - Consider extracting shared HL base classes to reduce duplication
 - Audit `is_exchange_information_valid()` — always returns `True`, meaning no filtering of disabled/delisted pairs at exchange info level (relies on downstream checks)
+
+---
+
+## Phase 4 Testnet Trial (2026-04-17 → 2026-04-18)
+
+### V1 `simple_pmm` script — smoke run only
+- Surfaced 5 upstream defects (detailed in `docs/lessons.md`): HIP-3 `split(':')` crash, case-sensitive dedup mismatch, HIP-3 fetch path bugs, sample script uses non-perp `OrderCandidate`, and nonce-collision in order submission (~50% rejection rate for simultaneous symmetric quotes).
+- Position flattened at **−$0.024**. Shadow DB: `shadow/trial-20260417-1818.db`.
+- Not a performance test — just enough runtime to catch the connector bugs.
+
+### V2 `pmm_simple` controller — 5.5h trial (BTC-USD)
+Config: $80 quote budget, 2 spread levels (10/30 bps), 1x leverage, SL 200 bps / TP 50 bps / time_limit 1800s, refresh 60s. DB: `shadow/trial-v2-20260417-1908.db`.
+
+| Metric | Value |
+|---|---|
+| Fills | 134 (68 buys / 66 sells) over 5.52h |
+| Rate | 24 fills/hr |
+| Total notional churned | $2,248 |
+| Avg trade size | 0.00022 BTC (~$16.78 notional) |
+| Gross edge captured | ~14 bps on notional |
+| Fees paid | $0.44 (~2 bps) |
+| Realized PnL (matched) | $2.15 |
+| Net inventory drift | −0.002 BTC short (stuck executors) |
+| Total PnL incl. MTM | $3.06 |
+| Price range (intraday) | $77,494 – $78,442 (122 bps) |
+
+**Scale estimate for a $1,000 account, same rotation**: ~$117/day gross ceiling in a friendly regime. Realistic steady-state after mainnet adverse-selection haircut, real fees, inventory drift, and bug throttle: **$3–10/day expected**, with **−$30 to −$200 on trending days**. Annualized ~10–30% APR when conditions cooperate, negative when they don't. PMM on one pair has inherently low Sharpe (~0.5–1.0).
+
+### New defect found: V2 PositionExecutor ↔ HL reduce-only sync bug
+- After ~5.5h: 15,303 `Reduce only order would increase position` rejections; 5,006 take-profit failures; multiple executors hit `Retrying 10/10` cap → bot alive but not placing new orders.
+- Root cause: V2 `pmm_simple` submits take-profits as reduce-only LIMIT. Hummingbot's internal position state lags HL's actual state; when executor thinks it's long but HL view is already flat (settlement delay between fill event and position-snapshot refresh), HL rejects.
+- V2 masks the V1 nonce-collision via retry, but introduces this *new* defect via TripleBarrier exit logic.
+- Upstream fix direction: reconcile against `clearinghouseState` before reduce-only submit, or fall back to regular LIMIT on reduce-only failure.
+
+### Strategy coverage — what was **not** tested
+Hummingbot ships ~15 HL-applicable strategies. This evaluation tested 2:
+- **V1 tested**: `simple_pmm` (smoke)
+- **V2 tested**: `pmm_simple` (5.5h trial)
+- **V1 untested**: `pure_market_making`, `perpetual_market_making`, `avellaneda_market_making`, `cross_exchange_market_making` (XEMM), `spot_perpetual_arbitrage`, `twap`
+- **V2 untested**: `pmm_dynamic`, `dman_v3`, `bollinger_v1`, `macd_bb_v1`, `supertrend_v1`, `stat_arb`, `xemm_multiple_levels`
+
+Current data supports a verdict on the *bot* and the *PMM family*, not the strategy framework as a whole. XEMM is the most important gap — hedging inventory on an external venue would materially change the risk profile vs the drift observed here.
+
+### Trial verdict
+Score of 4.18 holds. Strategy mechanically captures spread; engineering defects are real but documentable and upstream-fixable. "Lots of trades, tiny P&L" is a **scale** story (tiny testnet account, $10 HL min notional forces $17/fill), not a strategy failure. Call the bot-evaluation done after this trial; further Hummingbot work belongs to *strategy research* scope, not *bot evaluation* scope.

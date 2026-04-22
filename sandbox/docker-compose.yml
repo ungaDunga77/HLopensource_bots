@@ -224,6 +224,143 @@ services:
       - "--v2"
       - "testnet-config.yml"
 
+  # Passivbot — Phase 4 testnet trial (BTC long, 1x leverage on HL testnet)
+  #
+  # Requires the image `bot-passivbot:latest` (built in Phase 3).
+  # The patched hyperliquid.py is bind-mounted over the in-image copy so we
+  # don't need to rebuild (Rust compile is ~10 min).
+  #
+  # Usage:
+  #   docker compose -f sandbox/docker-compose.yml --profile testnet up bot-testnet-passivbot
+  bot-testnet-passivbot:
+    profiles:
+      - testnet
+    image: bot-passivbot:latest
+    restart: unless-stopped
+    networks:
+      - testnet
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: "1.0"
+    security_opt:
+      - no-new-privileges:true
+    working_dir: /app
+    volumes:
+      - ../bots/passivbot/src/exchanges/hyperliquid.py:/app/src/exchanges/hyperliquid.py:ro
+      - ../evaluations/passivbot/api-keys.json:/app/api-keys.json:ro
+      - ../evaluations/passivbot/testnet-config.json:/app/testnet-config.json:ro
+      - ../evaluations/passivbot/logs:/app/logs:rw
+      - ../evaluations/passivbot/caches:/app/caches:rw
+      - ../evaluations/passivbot/backtests:/app/backtests:rw
+    environment:
+      - SKIP_RUST_COMPILE=true
+      - PYTHONUNBUFFERED=1
+    command:
+      - "python"
+      - "src/main.py"
+      - "--skip-rust-compile"
+      - "--log-level"
+      - "info"
+      - "/app/testnet-config.json"
+
+  # Passivbot — Phase 4 testnet trial #2: FORAGER mode (multi-coin, n_positions < approved_coins)
+  bot-testnet-passivbot-forager:
+    profiles:
+      - testnet
+    image: bot-passivbot:latest
+    restart: unless-stopped
+    networks:
+      - testnet
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: "1.0"
+    security_opt:
+      - no-new-privileges:true
+    working_dir: /app
+    volumes:
+      - ../bots/passivbot/src/exchanges/hyperliquid.py:/app/src/exchanges/hyperliquid.py:ro
+      - ../evaluations/passivbot/api-keys.json:/app/api-keys.json:ro
+      - ../evaluations/passivbot/testnet-forager-config.json:/app/testnet-config.json:ro
+      - ../evaluations/passivbot/logs:/app/logs:rw
+      - ../evaluations/passivbot/caches:/app/caches:rw
+      - ../evaluations/passivbot/backtests:/app/backtests:rw
+    environment:
+      - SKIP_RUST_COMPILE=true
+      - PYTHONUNBUFFERED=1
+    command:
+      - "python"
+      - "src/main.py"
+      - "--skip-rust-compile"
+      - "--log-level"
+      - "info"
+      - "/app/testnet-config.json"
+
+  # Freqtrade-titouan — Phase 5 Trial A: HL testnet smoke (BTC/USDC perp, 1x, $12 stake)
+  bot-testnet-freqtrade-titouan:
+    profiles:
+      - testnet
+    image: freqtrade-titouan:trial
+    restart: unless-stopped
+    networks:
+      - testnet
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: "1.0"
+    security_opt:
+      - no-new-privileges:true
+    working_dir: /freqtrade
+    volumes:
+      - ../evaluations/freqtrade-titouan/testnet-config-live.json:/freqtrade/testnet-config.json:ro
+      - ../evaluations/freqtrade-titouan/user_data:/freqtrade/user_data:rw
+    environment:
+      - PYTHONUNBUFFERED=1
+    command:
+      - "trade"
+      - "--config"
+      - "/freqtrade/testnet-config.json"
+      - "--logfile"
+      - "/freqtrade/user_data/logs/trial-a.log"
+
+  # Passivbot — Phase 4 testnet trial #3: FULL FORAGER (shorts enabled, multi-position long)
+  bot-testnet-passivbot-trial3:
+    profiles:
+      - testnet
+    image: bot-passivbot:latest
+    restart: unless-stopped
+    networks:
+      - testnet
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: "1.0"
+    security_opt:
+      - no-new-privileges:true
+    working_dir: /app
+    volumes:
+      - ../bots/passivbot/src/exchanges/hyperliquid.py:/app/src/exchanges/hyperliquid.py:ro
+      - ../evaluations/passivbot/api-keys.json:/app/api-keys.json:ro
+      - ../evaluations/passivbot/testnet-forager-trial3-config.json:/app/testnet-config.json:ro
+      - ../evaluations/passivbot/logs:/app/logs:rw
+      - ../evaluations/passivbot/caches:/app/caches:rw
+      - ../evaluations/passivbot/backtests:/app/backtests:rw
+    environment:
+      - SKIP_RUST_COMPILE=true
+      - PYTHONUNBUFFERED=1
+    command:
+      - "python"
+      - "src/main.py"
+      - "--skip-rust-compile"
+      - "--log-level"
+      - "info"
+      - "/app/testnet-config.json"
+
   bot-testnet-rust:
     profiles:
       - testnet
