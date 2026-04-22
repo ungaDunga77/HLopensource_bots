@@ -1,0 +1,51 @@
+from __future__ import annotations
+
+from typing import Literal
+
+from pydantic import BaseModel, ConfigDict, Field, SecretStr
+
+
+class StrategyConfig(BaseModel):
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    pair: str = "BTC"
+    leverage: int = Field(default=3, ge=1, le=50)
+    grid_levels: int = Field(default=5, ge=1, le=50)
+    wallet_exposure_limit: float = Field(default=0.1, gt=0, le=1.0)
+    range_bps_min: int = Field(default=50, ge=1)
+    rolling_sigma_window_min: int = Field(default=60, ge=1)
+
+
+class RiskConfig(BaseModel):
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    max_daily_loss_pct: float = Field(default=0.05, gt=0, le=1.0)
+    min_notional_usd: float = Field(default=10.0, gt=0)
+
+
+class ObservabilityConfig(BaseModel):
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    shadow_db_path: str = "data/shadow.sqlite"
+    health_port: int = Field(default=8080, ge=1024, le=65535)
+    telegram_chat_id: SecretStr | None = None
+    telegram_bot_token: SecretStr | None = None
+
+
+class BaseConfig(BaseModel):
+    """Base config; never instantiated directly. Use TestnetConfig / MainnetConfig."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    mode: Literal["testnet", "mainnet"]
+    account_address: str
+    keyfile_path: str
+    keyfile_password: SecretStr
+    strategy: StrategyConfig = Field(default_factory=StrategyConfig)
+    risk: RiskConfig = Field(default_factory=RiskConfig)
+    observability: ObservabilityConfig = Field(default_factory=ObservabilityConfig)
+
+    @property
+    def is_secure(self) -> bool:
+        """Marker per design notes §1: every config is secret-aware."""
+        return True

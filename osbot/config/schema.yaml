@@ -1,0 +1,24 @@
+# Example osbot config (testnet default).
+# Secrets belong in env vars, not this file. Any SecretStr field may be set via
+# OSBOT_<UPPER_PATH> — e.g. keyfile_password via OSBOT_KEYFILE_PASSWORD.
+
+mode: testnet
+# Truncated placeholder — real address supplied at runtime.
+account_address: "0x0000000000000000000000000000000000000000"
+keyfile_path: "./secrets/agent.keyfile"
+
+strategy:
+  pair: BTC
+  leverage: 3
+  grid_levels: 5
+  wallet_exposure_limit: 0.1
+  range_bps_min: 50
+  rolling_sigma_window_min: 60
+
+risk:
+  max_daily_loss_pct: 0.05
+  min_notional_usd: 10.0
+
+observability:
+  shadow_db_path: "data/shadow.sqlite"
+  health_port: 8080

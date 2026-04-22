@@ -3,3 +3,14 @@ pip-audit>=2.7.0
 safety>=3.0.0
 detect-secrets>=1.4.0
 trufflehog>=2.2.1
+
+# osbot (custom bot, M0 scaffold)
+pydantic>=2.12
+pydantic-settings>=2.0
+PyYAML>=6.0
+# dev
+ruff
+mypy
+pytest
+pytest-asyncio
+vcrpy

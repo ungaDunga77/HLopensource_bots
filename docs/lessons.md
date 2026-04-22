@@ -342,3 +342,27 @@ Extrapolation to a $1,000 account at same rotation rate: ~$117/day gross ceiling
 - ⏳ Liquidation-price closed-form formula — code-validated; to fire-validate, we'd need to push a position near liquidation on testnet, which requires extreme leverage.
 
 **The fork's score stands at 3.75.** Trial confirmed the patterns we want to adopt and surfaced operational knowledge (boot time, config quirks, passive-limit fill issues) that will inform our own bot's design.
+
+---
+
+## M0 Scaffold (osbot, 2026-04-22)
+
+**Custom bot scaffold stood up against ruff + mypy-strict + pytest on first pass.** 34 source files, 15 unit tests, zero lint/type errors. The discipline of synthesis §5.2 as a binding layout (not a sketch) paid off — every module landed where the document said it should, with stub signatures shaped by M1/M2's future needs, not guessed.
+
+**Pydantic `SecretStr` inside `BaseModel` protects against the `repr`/`str`/log accidents cheaply.** Test-asserted: `"topsecret" not in repr(cfg)` and `not in str(cfg)`. Trivial to add, removes a whole class of leak. Use everywhere credentials touch config from M0 onward.
+
+**`MainnetConfig.confirm_mainnet: true` as an explicit opt-in gate.** Implemented as a pydantic `model_validator(mode="after")` that raises `ValueError("confirm_mainnet")` when unset. Makes it structurally impossible to `load_config()` a mainnet YAML by accident — the test-bench can't be wired the wrong way.
+
+**ruff's `PLR2004` magic-value check fires hard on tests.** Scoped silencing via `[tool.ruff.lint.per-file-ignores] "tests/**" = ["PLR2004"]` keeps the main code honest without drowning test files in `# noqa` comments.
+
+**pytest auto-collects any class whose name starts with `Test`.** `TestnetConfig` tripped this — it has `__init__` (via Pydantic), so pytest emitted a collection warning. Fix was `python_classes = ["Test*Case"]` in `[tool.pytest.ini_options]`. Worth keeping: if we later add more `Test…Config` types they won't bite.
+
+**`UP042` requires `StrEnum` (Python 3.11+) instead of `(str, Enum)`.** Cleaner anyway — the mixin pattern was always a workaround. We're on 3.12, so `from enum import StrEnum` and subclass directly.
+
+**For the M0 `classify(err)` error dispatcher, string markers are fine.** The hypersdk reference uses structured error codes from the Rust SDK, which we don't have yet. Marker-based `classify()` gives us the same top-of-funnel retryable/structural/auth split today; we swap to code-based dispatch when the connector wraps the SDK in M1 and we see which codes come back. The category enum and hierarchy don't change — just the `classify()` body.
+
+**Dual-ID cloid layout finalized as a 16-byte (32-hex) string.** Fields: `strategy_id` (4 hex) + `intent_code` (2) + `level` (2) + padding (8) + monotonic counter (16) = 32 hex + `0x` prefix = 34-char cloid. The counter is the uniqueness guarantee — re-planting grid level 0 a hundred times produces a hundred distinct cloids. Test-locked.
+
+**`del arg1, arg2` is a cleaner ruff-clean way to mark unused params in stubs than `# noqa: ARG00x`.** The `del` statement is executable, documented Python, doesn't require a linter suppression, and survives ruff rule expansion. Using this consistently in M0's `raise NotImplementedError` stubs.
+
+**Vendoring-with-attribution pattern works in the docstring, not a VENDOR.md.** `NonceManager` and `AsyncThrottler` both credit Hummingbot (Apache-2.0) in the module docstring; the VCR harness credits the HL SDK (MIT) in `tests/conftest.py`. If we grow enough of these to need a license inventory, we'll promote to `VENDOR.md` then; for M0 it's noise.
