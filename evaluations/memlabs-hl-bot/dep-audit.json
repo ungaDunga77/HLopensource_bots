@@ -1,0 +1,15 @@
+{
+  "target": "bots/memlabs-hl-bot",
+  "languages": [],
+  "vulnerability_count": 0,
+  "has_critical": false,
+  "findings": [
+    {
+      "severity": "INFO",
+      "category": "note",
+      "package": "",
+      "description": "No recognized language manifests found",
+      "details": ""
+    }
+  ]
+}

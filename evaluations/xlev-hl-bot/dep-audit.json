@@ -1,0 +1,87 @@
+{
+  "target": "bots/xlev-hl-bot",
+  "languages": [
+    "python"
+  ],
+  "vulnerability_count": 8,
+  "has_critical": false,
+  "findings": [
+    {
+      "severity": "MEDIUM",
+      "category": "vulnerability",
+      "package": "python-dotenv",
+      "description": "[pip-audit] CVE-2026-28684: ### Summary  `set_key()` and `unset_key()` in python-dotenv follow symbolic links when rewriting `.env` files, allowing a local attacker to overwrite arbitrary files via a crafted symlink when a cross",
+      "details": "Installed: 1.0.0, Fix: 1.2.2"
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "vulnerability",
+      "package": "black",
+      "description": "[pip-audit] CVE-2026-32274: ### Impact  Black writes a cache file, the name of which is computed from various formatting options. The value of the `--python-cell-magics` option was placed in the filename without sanitization, wh",
+      "details": "Installed: 24.4.2, Fix: 26.3.1"
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "vulnerability",
+      "package": "pytest",
+      "description": "[pip-audit] CVE-2025-71176: pytest through 9.0.2 on UNIX relies on directories with the `/tmp/pytest-of-{user}` name pattern, which allows local users to cause a denial of service or possibly gain privileges.",
+      "details": "Installed: 8.2.2, Fix: 9.0.3"
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "vulnerability",
+      "package": "requests",
+      "description": "[pip-audit] CVE-2024-47081: ### Impact  Due to a URL parsing issue, Requests releases prior to 2.32.4 may leak .netrc credentials to third parties for specific maliciously-crafted URLs.  ### Workarounds For older versions of Req",
+      "details": "Installed: 2.32.3, Fix: 2.32.4"
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "vulnerability",
+      "package": "requests",
+      "description": "[pip-audit] CVE-2026-25645: ### Impact The `requests.utils.extract_zipped_paths()` utility function uses a predictable filename when extracting files from zip archives into the system temporary directory. If the target file alre",
+      "details": "Installed: 2.32.3, Fix: 2.33.0"
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "vulnerability",
+      "package": "setuptools",
+      "description": "[pip-audit] PYSEC-2025-49: ### Summary  A path traversal vulnerability in `PackageIndex` was fixed in setuptools version 78.1.1  ### Details ```     def _download_url(self, url, tmpdir):         # Determine download filename   ",
+      "details": "Installed: 67.8.0, Fix: 78.1.1"
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "vulnerability",
+      "package": "setuptools",
+      "description": "[pip-audit] PYSEC-2025-49: setuptools is a package that allows users to download, build, install, upgrade, and uninstall Python packages. A path traversal vulnerability in `PackageIndex` is present in setuptools prior to versio",
+      "details": "Installed: 67.8.0, Fix: 78.1.1"
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "vulnerability",
+      "package": "setuptools",
+      "description": "[pip-audit] CVE-2024-6345: A vulnerability in the `package_index` module of pypa/setuptools versions up to 69.1.1 allows for remote code execution via its download functions. These functions, which are used to download packages",
+      "details": "Installed: 67.8.0, Fix: 70.0.0"
+    },
+    {
+      "severity": "LOW",
+      "category": "pinning",
+      "package": "setuptools",
+      "description": "Dependency not pinned to exact version: setuptools>=65.0.0,<68",
+      "details": ""
+    },
+    {
+      "severity": "LOW",
+      "category": "pinning",
+      "package": "python-dateutil",
+      "description": "Dependency not pinned to exact version: python-dateutil>=2.8.2",
+      "details": ""
+    },
+    {
+      "severity": "LOW",
+      "category": "pinning",
+      "package": "py-builder-relayer-client",
+      "description": "Dependency not pinned to exact version: py-builder-relayer-client",
+      "details": ""
+    }
+  ]
+}

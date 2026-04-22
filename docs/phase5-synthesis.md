@@ -29,8 +29,38 @@ Scores are weighted per the rubric: Security 40%, Functionality 30%, Engineering
 | 17 | Grid Bot (SrDebiasi) | 2.47 | ❌ | Unauthenticated API storing private keys as `VARCHAR(255)`. Do not touch. |
 | 18 | HyperLiquidAlgoBot | 2.39 | ❌ | Renamed dYdX scalper, inconsistent testnet flags, RiskManager defined but never called on live path. |
 | 19 | Market Maker (Novus) | 1.47 | ❌ | `panic!()` in exchange data handlers, `f64::from_bits(1)` sentinels, unauthenticated dashboard. |
+| — | **Phase 5b honorable mentions (2026-04-22)** | | | |
+| 20 | **hyperopen (ClojureScript)** | 3.94 | ❌ | Reference-quality engineering (562 test files / 186 ADRs / per-ns LOC caps). **Not a bot** — it's HL's best OSS trading UI with full vault analytics. AGPL blocks direct reuse but patterns transfer. |
+| 21 | senpi-skills | 3.79 | ❌ | 52+ scanner-strategy "animals" trading live HL through Senpi's **closed** MCP/Hyperfeed runtime. Not OSS-runnable. Harvest the DSL trailing-stop + scanner/executor separation + fee-optimized-limit wrapper. |
+| 22 | vnpy-hyperliquid | 3.00 | ❌ | 1-day-old real-but-untested HL gateway for VeighNa. Dual-ID cloid tracking + multi-perp-dex support are keepers. Mainnet hardcoded, no tests. |
+| 23 | memlabs-hl-bot | 2.71 | ❌ | Clean streaming-feature classes (`Window`, `LogReturn`, `Lags`) + textbook WS reconnect, but every-bar churn loop + zero risk controls. Single-commit code-dump. |
+| 24 | redm3-lstm | 1.06 | ❌ | LSTM long-gate computed *at module import* from stale 2023 CSV with hardcoded `C:/Users/...` paths. Anti-pattern gold. |
+| 25 | xlev-hl-bot | 0.23 | ❌ | **Wallet-drainer repo** — 79 stars, zero source, install = `powershell iwr .../main.ps1 \| iex` + `PRIVATE_KEY=...` in `.env`. Added to internal deny-list. |
 
-**Skipped from Tier 3** with documented reason (duplicate of already-reviewed pattern, hype wrapper, or non-trading): AI Trading Bot, Hypercopy-xyz, LSTM Bot, AI Crypto Bot, Bybit-HL Arb, Rust Bot (RUBE40), Rust Bot (0xTan), Telegram Info Bot.
+**Skipped from Tier 3** with documented reason (duplicate of already-reviewed pattern, hype wrapper, or non-trading): AI Trading Bot, Hypercopy-xyz, AI Crypto Bot, Bybit-HL Arb, Rust Bot (RUBE40), Rust Bot (0xTan), Telegram Info Bot. (LSTM Bot moved from skipped → evaluated in 5b as redm3-lstm.)
+
+**New patterns from the Phase 5b honorable-mentions batch (added 2026-04-22):**
+
+- **WebAuthn passkey + PRF-derived agent-wallet lockbox** — hyperopen. Never stores the main wallet key; HL agent wallet is approved once on HL, encrypted with a passkey-PRF-derived key, unlocked per-session via passkey touch. Python analogue: `cryptography.fernet` + OS keyring. Strictly better than `PRIVATE_KEY=...` in `.env` — adopt for any user-facing deployment.
+- **EIP-712 action-surface coverage checklist** — hyperopen's `hl_signing.cljs` enumerates every HL action we can sign. Use as a coverage checklist when building our signing layer; any action not in that list is either unsupported or recent.
+- **Dual-ID (cloid↔oid) order tracking with three mapping tables + `cancelByCloid`** — vnpy-hyperliquid. Maintain `local_order_id ↔ cloid ↔ oid` dicts; cancel by cloid to avoid the oid-race when HL's oid hasn't propagated back yet. Our `tags.py` module should expose both identifiers.
+- **Fill-dedup via bounded `tid` set across multiple WS channels** — vnpy-hyperliquid merges `userEvents` and `userFills` channels (same fills arrive via both with different field shapes), dedups via a trade-id set. Closely related to XEMM's 5-layer design but simpler for a single-venue bot.
+- **DSL two-phase trailing stop with `consecutiveBreachesRequired` noise suppression** — senpi-skills. Trailing stop requires N consecutive price breaches before firing, not just one tick crossing. Eliminates whipsaw exits on thin books. Port to our exits module.
+- **Scanner/executor separation as a structural rule** — senpi-skills: "scanners enter, DSL exits, never both." Forces entry and exit logic into separate modules that can't reach into each other's state. Good structural rule for our `strategy/` layout — `selection.py` picks, `exits.py` manages position, they communicate only via a decision-output JSON schema.
+- **Uniform decision-output JSON schema → one executor, many strategies** — senpi-skills. Every strategy emits `{action, size, price, reason, strategy_id}`; one executor consumes that schema regardless of which scanner produced it. Complements HAA's `AIDecisionLog`: HAA is how to *log* decisions, senpi-skills is how to *structure* N strategies behind one executor.
+- **`FEE_OPTIMIZED_LIMIT` maker-first-then-taker wrapper** — senpi-skills. Place limit at maker side, wait N seconds, cancel + repost aggressively, eventually cross if still unfilled. Encodes the maker-rebate vs fill-certainty tradeoff as a single order type. Candidate for our connector's submit API.
+- **Per-strategy cooldown + daily entry cap as state files** — senpi-skills. Persisted per-strategy so restarts don't re-open channels immediately. Cheap, shift-left safety bound.
+- **Streaming feature classes (`Window`, `LogReturn`, `Lags`)** — memlabs-hl-bot. Minimal reusable building blocks for incremental feature computation over a streaming tick/bar feed. Lift the three classes (~100 LOC total) into our `state/features.py`.
+- **Interval-aligned scheduler** — memlabs-hl-bot's `trade_periodically`. Sleeps to the next exact multiple of the bar interval, not `now + interval`. Avoids drift across days. Adopt for any periodic decision loop.
+
+**New anti-patterns from the 5b batch:**
+
+- **Inference at module import** — redm3-lstm computes its LSTM gate once on `import`, from a stale 2023 CSV with hardcoded `C:/Users/macmw/...` paths, then reuses the boolean forever in the 900s loop. Our rule: all model inference happens at decision time, reading the current market; never at import.
+- **Training/live data distribution mismatch** — redm3-lstm trained on stale historical data, deployed against live. No validation that live distribution matches training. Any ML path must have a live-vs-training drift monitor as a pre-gate.
+- **Regressor collapsed to boolean via `np.sign(y_hat)`** — redm3-lstm. Discards the entire magnitude/confidence signal. If we use regressors, the size should scale with predicted return, not jump to full-size on the first positive signal.
+- **Mismatched units in risk thresholds** — redm3-lstm compared `pnl_perc * pos_size` against `target=0.2` and `-max_loss=0.01`. Dimensional error — a 0.2 target in "position-currency units" is not a 20% target. Enforce unit tags on all risk constants, reject at startup if dimensions don't match.
+- **Identical bid/ask from L2 level 0** — redm3-lstm assigned `bid = ask = l2[0][0]['px']`, collapsing the spread. Any L2-derived quote needs paired `[bids[0], asks[0]]` access.
+- **High-stars-near-zero-source repos** — xlev-hl-bot is the canonical wallet-drainer pattern: SEO-padded README is >80% of total LOC, install is a remote-fetch-and-execute, and the "bot" is an opaque release binary. **Scouting heuristic added to the secret-scan front-door**: any repo where README ≫ source (files-to-README line ratio) and there's no actual source directory is presumptively hostile. Do not clone for eval; document from metadata only.
 
 ---
 

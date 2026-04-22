@@ -36,7 +36,20 @@
 | 25 | Nova funding hub | SoYuCry/Nova_funding_hub | Python | Multi-DEX funding-rate aggregator (no execution) | 2.80 |
 | 26 | Avellaneda MM | djienne/AVELLANEDA_MARKET_MAKING_FREQTRADE | Python | Avellaneda-Stoikov MM on Freqtrade | 2.59 |
 
-Tier 3 bots skipped with written rationale (see `docs/phase5-synthesis.md` §1): AI Trading Bot, Hypercopy-xyz, LSTM Bot, AI Crypto Bot, Bybit-HL Arb, Rust Bot (RUBE40), Rust Bot (0xTan), Telegram Info Bot. Reasons: hype-driven wrappers, duplicates of already-reviewed patterns (3rd copy trading, 3rd/4th Rust bot), or non-trading (Telegram info).
+### Phase 5b honorable-mentions batch (2026-04-22)
+
+Static eval only (no testnet trials). Parallel sub-agent evaluations. See `evaluations/{hyperopen,senpi-skills,vnpy-hyperliquid,memlabs-hl-bot,redm3-lstm,xlev-hl-bot}/evaluation.md`.
+
+| # | Name | Repo | Lang | Strategy / Purpose | Score |
+|---|------|------|------|--------------------|-------|
+| 27 | **hyperopen** | thegeronimo/hyperopen | ClojureScript | HL trading UI (perps+vaults+portfolio). Not a bot — frontend | **3.94** |
+| 28 | **senpi-skills** | Senpi-ai/senpi-skills | Python | 52+ strategy "animals" behind Senpi's closed runtime — not OSS-runnable | **3.79** |
+| 29 | **vnpy-hyperliquid** | Macrohegder/vnpy-hyperliquid | Python | HL gateway for VeighNa (vnpy) — 1-day old, mainnet-hardcoded | **3.00** |
+| 30 | memlabs-hl-bot | memlabs-research/hyperliquid-trading-bot | Python | Linear-regression scalper, every-bar churn | 2.71 |
+| 31 | redm3-lstm | redm3/HYPERLIQUID | Python | LSTM on 2023 CSV, inference-at-import — toy | 1.06 |
+| 32 | **xlev-hl-bot** (MALWARE) | xlev-v/Hyperliquid-Trading-Bot | PowerShell | **Wallet drainer** — `iwr...\|iex` + private-key dotenv. 79 stars. Do not clone | **0.23** |
+
+Tier 3 bots skipped with written rationale (see `docs/phase5-synthesis.md` §1): AI Trading Bot, Hypercopy-xyz, AI Crypto Bot, Bybit-HL Arb, Rust Bot (RUBE40), Rust Bot (0xTan), Telegram Info Bot. (LSTM Bot moved from skipped → evaluated as redm3-lstm in 5b.) Reasons: hype-driven wrappers, duplicates of already-reviewed patterns (3rd copy trading, 3rd/4th Rust bot), or non-trading (Telegram info).
 
 **Reference**: hyperliquid-dex/hyperliquid-python-sdk (official SDK, baseline) — **Evaluated 2026-03-29** | Stars: 1,489 | Forks: 512 | MIT | v0.22.0 (Feb 2026) | Score: 3.73
 

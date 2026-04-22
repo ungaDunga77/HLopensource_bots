@@ -1,0 +1,15 @@
+{
+  "target": "/home/sergi/projects/metatrends/osbots/bots/redm3-lstm",
+  "languages": [],
+  "vulnerability_count": 0,
+  "has_critical": false,
+  "findings": [
+    {
+      "severity": "INFO",
+      "category": "note",
+      "package": "",
+      "description": "No recognized language manifests found",
+      "details": ""
+    }
+  ]
+}

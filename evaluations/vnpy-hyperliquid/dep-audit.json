@@ -1,0 +1,59 @@
+{
+  "target": "bots/vnpy-hyperliquid",
+  "languages": [
+    "python"
+  ],
+  "vulnerability_count": 0,
+  "has_critical": false,
+  "findings": [
+    {
+      "severity": "LOW",
+      "category": "pinning",
+      "package": "vnpy",
+      "description": "Dependency not pinned to exact version: vnpy>=3.9.0",
+      "details": ""
+    },
+    {
+      "severity": "LOW",
+      "category": "pinning",
+      "package": "vnpy_rest",
+      "description": "Dependency not pinned to exact version: vnpy_rest>=1.2.0",
+      "details": ""
+    },
+    {
+      "severity": "LOW",
+      "category": "pinning",
+      "package": "vnpy_websocket",
+      "description": "Dependency not pinned to exact version: vnpy_websocket>=1.1.0",
+      "details": ""
+    },
+    {
+      "severity": "LOW",
+      "category": "pinning",
+      "package": "hyperliquid-python-sdk",
+      "description": "Dependency not pinned to exact version: hyperliquid-python-sdk>=0.10.0",
+      "details": ""
+    },
+    {
+      "severity": "LOW",
+      "category": "pinning",
+      "package": "eth-account",
+      "description": "Dependency not pinned to exact version: eth-account>=0.13.0",
+      "details": ""
+    },
+    {
+      "severity": "LOW",
+      "category": "pinning",
+      "package": "msgpack",
+      "description": "Dependency not pinned to exact version: msgpack>=1.0.0",
+      "details": ""
+    },
+    {
+      "severity": "LOW",
+      "category": "pinning",
+      "package": "eth-utils",
+      "description": "Dependency not pinned to exact version: eth-utils>=5.0.0",
+      "details": ""
+    }
+  ]
+}

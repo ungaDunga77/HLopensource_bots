@@ -1,0 +1,80 @@
+{
+  "target": "bots/hyperopen",
+  "languages": [
+    "node"
+  ],
+  "vulnerability_count": 0,
+  "has_critical": false,
+  "findings": [
+    {
+      "severity": "LOW",
+      "category": "pinning",
+      "package": "@noble/secp256k1",
+      "description": "Dependency uses version range: ^3.0.0",
+      "details": ""
+    },
+    {
+      "severity": "LOW",
+      "category": "pinning",
+      "package": "@openai/agents",
+      "description": "Dependency uses version range: ^0.7.2",
+      "details": ""
+    },
+    {
+      "severity": "LOW",
+      "category": "pinning",
+      "package": "d3",
+      "description": "Dependency uses version range: ^7.9.0",
+      "details": ""
+    },
+    {
+      "severity": "LOW",
+      "category": "pinning",
+      "package": "indicatorts",
+      "description": "Dependency uses version range: ^2.2.2",
+      "details": ""
+    },
+    {
+      "severity": "LOW",
+      "category": "pinning",
+      "package": "lightweight-charts",
+      "description": "Dependency uses version range: ^5.0.8",
+      "details": ""
+    },
+    {
+      "severity": "LOW",
+      "category": "pinning",
+      "package": "lucide",
+      "description": "Dependency uses version range: ^0.577.0",
+      "details": ""
+    },
+    {
+      "severity": "LOW",
+      "category": "pinning",
+      "package": "shadow-cljs",
+      "description": "Dependency uses version range: ^3.1.7",
+      "details": ""
+    },
+    {
+      "severity": "LOW",
+      "category": "pinning",
+      "package": "smol-toml",
+      "description": "Dependency uses version range: ^1.6.0",
+      "details": ""
+    },
+    {
+      "severity": "INFO",
+      "category": "note",
+      "package": "",
+      "description": "Node dependencies: 9 runtime, 13 dev",
+      "details": ""
+    },
+    {
+      "severity": "INFO",
+      "category": "note",
+      "package": "",
+      "description": "Full npm audit deferred to Docker sandbox (requires npm install)",
+      "details": ""
+    }
+  ]
+}
