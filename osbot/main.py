@@ -2,6 +2,7 @@
 
 M0: `--dry-run` prints redacted config summary.
 M1: `--smoke-test` fetches testnet user_state (read-only) and prints balance + position count.
+M2: `--round-trip-test` runs full startup + opens/closes one $15-notional BTC position.
 """
 
 from __future__ import annotations
@@ -17,6 +18,7 @@ from osbot.config import BaseConfig, load_config
 from osbot.connector.errors import AppError
 from osbot.connector.hl_client import HLClient
 from osbot.observability import get_logger
+from osbot.roundtrip import run_round_trip
 
 log = get_logger("osbot.main")
 
@@ -73,6 +75,11 @@ def _build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Fetch testnet user_state read-only, print balance + position count, exit.",
     )
+    p.add_argument(
+        "--round-trip-test",
+        action="store_true",
+        help="Run full startup + open/close one $15-notional BTC position on testnet, exit.",
+    )
     return p
 
 
@@ -93,8 +100,11 @@ async def _smoke_test(cfg: BaseConfig) -> int:
 def main(argv: list[str] | None = None) -> int:
     args = _build_parser().parse_args(argv)
 
-    if not (args.dry_run or args.smoke_test):
-        log.error("Specify --dry-run (M0) or --smoke-test (M1). Strategy loop lands later.")
+    if not (args.dry_run or args.smoke_test or args.round_trip_test):
+        log.error(
+            "Specify --dry-run (M0), --smoke-test (M1), or --round-trip-test (M2). "
+            "Strategy loop lands later."
+        )
         return 2
 
     try:
@@ -110,7 +120,10 @@ def main(argv: list[str] | None = None) -> int:
         print(_summarize(cfg))
         return 0
 
-    return asyncio.run(_smoke_test(cfg))
+    if args.smoke_test:
+        return asyncio.run(_smoke_test(cfg))
+
+    return asyncio.run(run_round_trip(cfg))
 
 
 if __name__ == "__main__":
