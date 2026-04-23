@@ -19,11 +19,15 @@ CASSETTE_DIR = Path(__file__).parent / "cassettes"
 
 @pytest.fixture
 def vcr_cassette(request: pytest.FixtureRequest) -> Iterator[vcr.cassette.Cassette]:
-    """Per-test VCR cassette named after the test function."""
+    """Per-test VCR cassette named after the test function.
+
+    Record mode: `once` — if the cassette file is missing, hits the network and
+    writes it; if it exists, replays strictly (any new request raises).
+    """
     name = f"{request.node.name}.yaml"
     my_vcr = vcr.VCR(
         cassette_library_dir=str(CASSETTE_DIR),
-        record_mode="none",
+        record_mode="once",
         filter_headers=["authorization", "cookie"],
         filter_query_parameters=["signature"],
     )

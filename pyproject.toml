@@ -26,7 +26,7 @@ disallow_any_generics = true
 no_implicit_optional = true
 
 [[tool.mypy.overrides]]
-module = ["vcr.*", "yaml.*"]
+module = ["vcr.*", "yaml.*", "hyperliquid.*"]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]

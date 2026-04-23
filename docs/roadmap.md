@@ -63,7 +63,7 @@
 
 ## Phase 6: Custom bot build
 - [x] M0 — scaffold osbot package (modules typecheck, tests pass, `--dry-run` prints redacted summary) (2026-04-22)
-- [ ] M1 — connector + read-only testnet round-trip (`user_state`, `open_orders`, `all_mids`, `user_fills`)
+- [x] M1 — connector + read-only testnet round-trip (`user_state`, `open_orders`, `all_mids`, `user_fills`) (2026-04-23)
 - [ ] M2 — single-trip round trip on testnet (strategy path, all 10 startup steps enforced)
 - [ ] M3 — 24h testnet run (zero unhandled exceptions, `/health` healthy, shadow log populated)
 - [ ] M4 — 1-week testnet run (measurable net PnL ≥ 0, Telegram ops used at least once)

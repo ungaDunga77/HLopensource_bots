@@ -366,3 +366,23 @@ Extrapolation to a $1,000 account at same rotation rate: ~$117/day gross ceiling
 **`del arg1, arg2` is a cleaner ruff-clean way to mark unused params in stubs than `# noqa: ARG00x`.** The `del` statement is executable, documented Python, doesn't require a linter suppression, and survives ruff rule expansion. Using this consistently in M0's `raise NotImplementedError` stubs.
 
 **Vendoring-with-attribution pattern works in the docstring, not a VENDOR.md.** `NonceManager` and `AsyncThrottler` both credit Hummingbot (Apache-2.0) in the module docstring; the VCR harness credits the HL SDK (MIT) in `tests/conftest.py`. If we grow enough of these to need a license inventory, we'll promote to `VENDOR.md` then; for M0 it's noise.
+
+## M1 Read-Only Connector (osbot, 2026-04-23)
+
+**`--smoke-test` against live testnet passed on the first attempt** — `account_value=205.287261, positions=0` matches the memory baseline. Total M1 surface: 4 files changed + 1 new integration test file + 3 VCR cassettes. All M0 gates still green (ruff, mypy-strict across 34 files, 18/18 pytest).
+
+**Wrap sync SDK calls via `asyncio.to_thread`, not a parallel async client.** The HL SDK is requests-based and blocking. Rather than hand-roll an httpx-backed clone, `HLClient` keeps the SDK's `Info` instance and awaits each call through `asyncio.to_thread(self._info.user_state, addr)`. Keeps the whole bot async-first without blocking the event loop, and when the SDK eventually ships async natively, this is a 3-line swap.
+
+**SDK 0.22.0 spot_meta workaround has to be re-applied in every `Info()` constructor.** Passing `spot_meta={"universe": [], "tokens": []}` skips the broken spot-asset mapping loop. Already documented in the Phase 4 Chainstack section; repeating here because it's now a load-bearing init arg in `HLClient.__init__` and anyone touching the constructor must preserve it until we're on a fixed SDK.
+
+**`eth_keyfile` runtime accepts `bytes` passwords but its type stubs say `str`.** Source-of-truth is the runtime (tested: `decode_keyfile_json(kf, b"pass")` works fine), the stubs lie. One-line `# type: ignore[arg-type]` per call — don't convert to `str` because UTF-8-encoded passwords need to survive as bytes for the scrypt/PBKDF2 KDFs.
+
+**VCR `record_mode="once"` + one cassette per test is the right default for an HL integration suite.** First run hits testnet and records; subsequent runs replay strictly (new requests raise). If the code path changes (e.g., we added `spot_meta` stub so `spotMeta` is no longer fetched), **stale cassettes will replay old requests and fail against new code** — delete them and re-record. Don't try to be clever with `new_episodes`; that just hides drift.
+
+**HL SDK error translation via `classify()` on every `_call()` boundary works cleanly.** `HLClient._call()` catches any non-`AppError` exception, pipes it through `classify()`, and re-raises as the right subclass (Network/RateLimit/Structural/Auth). The main loop can now branch on `AppError.category` without sniffing strings — and when M2's Exchange wrapping adds more exception shapes, they route through the same funnel.
+
+**`FillEventsManager.reconcile()` is trivially idempotent once the dedup set is module-level.** Second call on the same fills returns `[]` because `is_new()` rejects already-seen `tid`s — integration test locks this invariant. REST-only reconciliation is 5 lines; WS event merge gets added in M2 and rides the same dedup path.
+
+**`asyncio_mode = "auto"` in `pyproject.toml` removes `@pytest.mark.asyncio` boilerplate** — every `async def test_…` is automatically picked up. The explicit marker in the integration tests is redundant but harmless and documents intent for readers.
+
+**mypy override scope creeps with each new untyped dep.** Now at `["vcr.*", "yaml.*", "hyperliquid.*"]`. `hyperliquid-python-sdk` ships no `py.typed` marker, so strict mode flags every import. Adding one module per milestone is fine; if it grows past ~8 modules, worth revisiting whether to vendor minimal type stubs locally rather than disable checking module-wide.

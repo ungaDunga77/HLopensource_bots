@@ -1,18 +1,21 @@
 """osbot entry point.
 
-M0 supports only `--dry-run`: loads config, prints redacted summary, exits 0.
-No testnet connection, no signing, no strategy — by design.
+M0: `--dry-run` prints redacted config summary.
+M1: `--smoke-test` fetches testnet user_state (read-only) and prints balance + position count.
 """
 
 from __future__ import annotations
 
 import argparse
+import asyncio
 import sys
 from pathlib import Path
 
 from pydantic import SecretStr
 
 from osbot.config import BaseConfig, load_config
+from osbot.connector.errors import AppError
+from osbot.connector.hl_client import HLClient
 from osbot.observability import get_logger
 
 log = get_logger("osbot.main")
@@ -65,14 +68,33 @@ def _build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Load config and print a redacted summary. Do not connect or trade.",
     )
+    p.add_argument(
+        "--smoke-test",
+        action="store_true",
+        help="Fetch testnet user_state read-only, print balance + position count, exit.",
+    )
     return p
+
+
+async def _smoke_test(cfg: BaseConfig) -> int:
+    client = HLClient(mode=cfg.mode, account_address=cfg.account_address)
+    try:
+        state = await client.user_state()
+    except AppError as e:
+        log.error("user_state failed: %s (%s)", e.message, e.category)
+        return 1
+    margin = state.get("marginSummary", {}) or {}
+    balance = margin.get("accountValue", "?")
+    positions = state.get("assetPositions", []) or []
+    print(f"smoke-test OK: account_value={balance} positions={len(positions)}")
+    return 0
 
 
 def main(argv: list[str] | None = None) -> int:
     args = _build_parser().parse_args(argv)
 
-    if not args.dry_run:
-        log.error("M0 only supports --dry-run. Strategy loop lands in later milestones.")
+    if not (args.dry_run or args.smoke_test):
+        log.error("Specify --dry-run (M0) or --smoke-test (M1). Strategy loop lands later.")
         return 2
 
     try:
@@ -84,8 +106,11 @@ def main(argv: list[str] | None = None) -> int:
         log.error("config load failed: %s", e)
         return 1
 
-    print(_summarize(cfg))
-    return 0
+    if args.dry_run:
+        print(_summarize(cfg))
+        return 0
+
+    return asyncio.run(_smoke_test(cfg))
 
 
 if __name__ == "__main__":
