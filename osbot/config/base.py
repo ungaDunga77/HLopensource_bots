@@ -14,6 +14,10 @@ class StrategyConfig(BaseModel):
     wallet_exposure_limit: float = Field(default=0.1, gt=0, le=1.0)
     range_bps_min: int = Field(default=50, ge=1)
     rolling_sigma_window_min: int = Field(default=60, ge=1)
+    tp_pct: float = Field(default=0.003, gt=0, le=0.1)
+    sl_pct: float = Field(default=0.015, gt=0, le=0.5)
+    exit_ttl_s: int = Field(default=86_400, ge=60)
+    sl_consecutive_breaches: int = Field(default=2, ge=1, le=10)
 
 
 class RiskConfig(BaseModel):

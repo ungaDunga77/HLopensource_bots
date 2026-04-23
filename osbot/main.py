@@ -19,6 +19,7 @@ from osbot.connector.errors import AppError
 from osbot.connector.hl_client import HLClient
 from osbot.observability import get_logger
 from osbot.roundtrip import run_round_trip
+from osbot.runner import run as run_loop
 
 log = get_logger("osbot.main")
 
@@ -80,6 +81,17 @@ def _build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Run full startup + open/close one $15-notional BTC position on testnet, exit.",
     )
+    p.add_argument(
+        "--run",
+        action="store_true",
+        help="Start the strategy loop (M3). Runs until SIGINT/SIGTERM or --max-ticks.",
+    )
+    p.add_argument(
+        "--max-ticks",
+        type=int,
+        default=None,
+        help="Stop after N ticks (smoke-run only). Omit for unbounded.",
+    )
     return p
 
 
@@ -97,13 +109,12 @@ async def _smoke_test(cfg: BaseConfig) -> int:
     return 0
 
 
-def main(argv: list[str] | None = None) -> int:
+def main(argv: list[str] | None = None) -> int:  # noqa: PLR0911
     args = _build_parser().parse_args(argv)
 
-    if not (args.dry_run or args.smoke_test or args.round_trip_test):
+    if not (args.dry_run or args.smoke_test or args.round_trip_test or args.run):
         log.error(
-            "Specify --dry-run (M0), --smoke-test (M1), or --round-trip-test (M2). "
-            "Strategy loop lands later."
+            "Specify --dry-run (M0), --smoke-test (M1), --round-trip-test (M2), or --run (M3)."
         )
         return 2
 
@@ -123,7 +134,10 @@ def main(argv: list[str] | None = None) -> int:
     if args.smoke_test:
         return asyncio.run(_smoke_test(cfg))
 
-    return asyncio.run(run_round_trip(cfg))
+    if args.round_trip_test:
+        return asyncio.run(run_round_trip(cfg))
+
+    return asyncio.run(run_loop(cfg, max_ticks=args.max_ticks))
 
 
 if __name__ == "__main__":
