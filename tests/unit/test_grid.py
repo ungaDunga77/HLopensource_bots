@@ -142,6 +142,50 @@ def test_ttl_fires() -> None:
     assert d.should_exit and d.reason == "ttl"
 
 
+def test_should_replan_initial_call_is_true() -> None:
+    g = GridStrategy(_cfg(), sz_decimals=5)
+    assert g.should_replan(now=100.0, replan_interval_s=300.0, have_grid=False)
+
+
+def test_should_replan_respects_pause_within_interval() -> None:
+    g = GridStrategy(_cfg(), sz_decimals=5)
+    m = MarketState()
+    for i in range(60):
+        m.sample(ts=float(i * 60), mid=60_000.0 + i * 50.0)  # trending
+    g.plan(now=60 * 60, mid=63_000.0, market=m, balance_usd=10_000.0, open_grid_cloids=[])
+    # Just paused; even though have_grid=False, do not replan within interval.
+    assert not g.should_replan(now=60 * 60 + 60, replan_interval_s=300.0, have_grid=False)
+
+
+def test_should_replan_after_interval_when_paused() -> None:
+    g = GridStrategy(_cfg(), sz_decimals=5)
+    m = MarketState()
+    for i in range(60):
+        m.sample(ts=float(i * 60), mid=60_000.0 + i * 50.0)
+    g.plan(now=60 * 60, mid=63_000.0, market=m, balance_usd=10_000.0, open_grid_cloids=[])
+    # Past the interval, replan even if still paused.
+    assert g.should_replan(now=60 * 60 + 400, replan_interval_s=300.0, have_grid=False)
+
+
+def test_should_replan_when_grid_lost_to_fills() -> None:
+    g = GridStrategy(_cfg(), sz_decimals=5)
+    m = MarketState()
+    for i in range(20):
+        m.sample(ts=float(i * 60), mid=60_000.0)  # flat -> no pause
+    g.plan(now=20 * 60, mid=60_000.0, market=m, balance_usd=10_000.0, open_grid_cloids=[])
+    # Last plan submitted; if grid is now empty, that means fills consumed it.
+    assert g.should_replan(now=20 * 60 + 60, replan_interval_s=300.0, have_grid=False)
+
+
+def test_should_replan_skips_within_interval_when_grid_alive() -> None:
+    g = GridStrategy(_cfg(), sz_decimals=5)
+    m = MarketState()
+    for i in range(20):
+        m.sample(ts=float(i * 60), mid=60_000.0)
+    g.plan(now=20 * 60, mid=60_000.0, market=m, balance_usd=10_000.0, open_grid_cloids=[])
+    assert not g.should_replan(now=20 * 60 + 60, replan_interval_s=300.0, have_grid=True)
+
+
 @pytest.mark.parametrize("side,mid,expected", [
     ("short", 59_700.0, "tp"),
     ("short", 62_000.0, "sl-pending"),

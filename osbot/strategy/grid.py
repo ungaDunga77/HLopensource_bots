@@ -121,11 +121,18 @@ class GridStrategy:
         self.range_bps_min = float(cfg.strategy.range_bps_min)
         self.min_notional_usd = cfg.risk.min_notional_usd
         self._last_plan_ts: float = 0.0
+        self._last_plan_was_paused: bool = False
 
     def should_replan(self, now: float, replan_interval_s: float, have_grid: bool) -> bool:
-        if not have_grid:
+        if self._last_plan_ts == 0.0:
             return True
-        return (now - self._last_plan_ts) >= replan_interval_s
+        if (now - self._last_plan_ts) >= replan_interval_s:
+            return True
+        if have_grid:
+            return False
+        # No live grid and within interval: only replan if the absence is due to
+        # fills consuming the grid, not because we intentionally paused.
+        return not self._last_plan_was_paused
 
     def plan(
         self,
@@ -154,7 +161,9 @@ class GridStrategy:
                 slope_bps,
                 self.range_bps_min,
             )
+            self._last_plan_was_paused = True
             return plan
+        self._last_plan_was_paused = False
 
         per_level_notional = (balance_usd * self.wallet_exposure_limit) / self.grid_levels
         bumped = False
