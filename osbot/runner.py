@@ -27,7 +27,7 @@ import asyncio
 import contextlib
 import signal
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 from osbot.config import BaseConfig
@@ -186,21 +186,90 @@ def _install_signal_handlers(health: HealthState) -> None:
             loop.add_signal_handler(sig, handler, sig.name)
 
 
+@dataclass
+class _PairRuntime:
+    """Per-pair runtime state. One instance per actively-traded pair.
+
+    Forager v1 keeps a dict of these on _RunnerState. When forager.enabled is
+    False, the dict has exactly one entry (cfg.strategy.pair) and behavior is
+    identical to single-pair mode.
+    """
+
+    pair: str
+    sz_decimals: int
+    market: MarketState
+    grid: GridStrategy
+    exit_mgr: ExitManager
+    tracked_cloids: list[str] = field(default_factory=list)
+
+
+async def _tick_pair(
+    pr: _PairRuntime,
+    *,
+    ctx: StartupContext,
+    risk: RiskManager,
+    health: HealthState,
+    state: dict[str, Any],
+    tick_idx: int,
+    now: float,
+) -> None:
+    """Per-pair work: mid sample, exit evaluation, replan/submit, reconcile."""
+    client = ctx.client
+    shadow = ctx.shadow
+
+    mid_str = client.cached_mid(pr.pair)
+    if mid_str is None:
+        mids = await client.all_mids()
+        mid_str = mids.get(pr.pair)
+    if not mid_str:
+        log.warning("tick %d: no mid for %s", tick_idx, pr.pair)
+        return
+    mid = float(mid_str)
+    pr.market.sample(now, mid)
+
+    user_state = await client.user_state()
+    closed = await pr.exit_mgr.evaluate_and_act(user_state, mid, health, now=now)
+    if closed:
+        shadow.snapshot("exit_close", {"tick": tick_idx, "pair": pr.pair, "mid": mid})
+        health.position_count = 0
+
+    if pr.grid.should_replan(now, state["replan_interval_s"], have_grid=bool(pr.tracked_cloids)):
+        plan = pr.grid.plan(
+            now=now,
+            mid=mid,
+            market=pr.market,
+            balance_usd=risk.last_equity,
+            open_grid_cloids=pr.tracked_cloids,
+        )
+        shadow.snapshot(
+            "grid_plan",
+            {
+                "tick": tick_idx,
+                "pair": pr.pair,
+                "mid": mid,
+                "cancels": len(plan.cancels),
+                "submits": len(plan.submits),
+                "equity": risk.last_equity,
+            },
+        )
+        pr.tracked_cloids = await _apply_plan(client, pr.pair, plan, risk, health)
+
+    if tick_idx % state["reconcile_every"] == 0:
+        pr.tracked_cloids = await _reconcile_orders(client, pr.pair, pr.tracked_cloids)
+
+
 async def _tick(
     *,
     ctx: StartupContext,
     cfg: BaseConfig,
-    market: MarketState,
-    grid: GridStrategy,
+    pairs: dict[str, _PairRuntime],
     risk: RiskManager,
     fills_mgr: FillEventsManager,
-    exit_mgr: ExitManager,
     health: HealthState,
     ws: WsSubscriber | None,
     state: dict[str, Any],
     tick_idx: int,
 ) -> None:
-    pair = cfg.strategy.pair
     client = ctx.client
     shadow = ctx.shadow
     now = time.time()
@@ -220,76 +289,50 @@ async def _tick(
     if ws_fills:
         log.info("tick %d: %d new fills", tick_idx, len(ws_fills))
 
-    # Prefer WS-fed cached mid; fall back to REST when stale or missing.
-    mid_str = client.cached_mid(pair)
-    if mid_str is None:
-        mids = await client.all_mids()
-        mid_str = mids.get(pair)
-    if not mid_str:
-        log.warning("tick %d: no mid for %s", tick_idx, pair)
-        return
-    mid = float(mid_str)
-    market.sample(now, mid)
-
     await risk.precheck()
 
-    user_state = await client.user_state()
-    closed = await exit_mgr.evaluate_and_act(user_state, mid, health, now=now)
-    if closed:
-        shadow.snapshot("exit_close", {"tick": tick_idx, "mid": mid})
-        health.position_count = 0
+    for pr in list(pairs.values()):
+        await _tick_pair(
+            pr, ctx=ctx, risk=risk, health=health, state=state, tick_idx=tick_idx, now=now
+        )
 
-    tracked: list[str] = state["tracked_cloids"]
-    if grid.should_replan(
-        now, state["replan_interval_s"], have_grid=bool(tracked)
-    ):
-        plan = grid.plan(
-            now=now,
-            mid=mid,
-            market=market,
-            balance_usd=risk.last_equity,
-            open_grid_cloids=tracked,
-        )
-        shadow.snapshot(
-            "grid_plan",
-            {
-                "tick": tick_idx,
-                "mid": mid,
-                "cancels": len(plan.cancels),
-                "submits": len(plan.submits),
-                "equity": risk.last_equity,
-            },
-        )
-        state["tracked_cloids"] = await _apply_plan(client, pair, plan, risk, health)
-
-    if tick_idx % state["reconcile_every"] == 0:
-        state["tracked_cloids"] = await _reconcile_orders(
-            client, pair, state["tracked_cloids"]
-        )
-        health.open_order_count = len(state["tracked_cloids"])
+    health.open_order_count = sum(len(pr.tracked_cloids) for pr in pairs.values())
 
     if tick_idx % state["equity_snapshot_every"] == 0:
+        # Account-level snapshot — record equity once. Mid is for context only;
+        # use the configured pair's cached mid if available, else any active.
+        ref_pair = cfg.strategy.pair if cfg.strategy.pair in pairs else next(iter(pairs))
+        ref_mid = client.cached_mid(ref_pair)
         shadow.snapshot(
             "equity",
-            {"tick": tick_idx, "value": risk.last_equity, "mid": mid},
+            {
+                "tick": tick_idx,
+                "value": risk.last_equity,
+                "pair": ref_pair,
+                "mid": float(ref_mid) if ref_mid else None,
+            },
         )
 
     if tick_idx % state["funding_sample_every"] == 0:
-        rate = await client.funding_rate(pair)
-        if rate is not None:
-            shadow.record_funding_rate(pair, rate)
-            health.funding_rate_hourly = rate
+        # Sample funding for every active pair (cheap — one info call each).
+        for pair_name in pairs:
+            rate = await client.funding_rate(pair_name)
+            if rate is not None:
+                shadow.record_funding_rate(pair_name, rate)
+        # /health surfaces the configured/primary pair's rate for back-compat.
+        primary = cfg.strategy.pair if cfg.strategy.pair in pairs else next(iter(pairs))
+        primary_rate = await client.funding_rate(primary)
+        if primary_rate is not None:
+            health.funding_rate_hourly = primary_rate
 
 
 @dataclass
 class _RunnerState:
     ctx: StartupContext
     cfg: BaseConfig
-    market: MarketState
-    grid: GridStrategy
+    pairs: dict[str, _PairRuntime]
     risk: RiskManager
     fills_mgr: FillEventsManager
-    exit_mgr: ExitManager
     health: HealthState
     server: HealthServer
     ws: WsSubscriber | None
@@ -309,11 +352,9 @@ async def _run_loop(rs: _RunnerState, tick_interval_s: float, max_ticks: int | N
             await _tick(
                 ctx=rs.ctx,
                 cfg=rs.cfg,
-                market=rs.market,
-                grid=rs.grid,
+                pairs=rs.pairs,
                 risk=rs.risk,
                 fills_mgr=rs.fills_mgr,
-                exit_mgr=rs.exit_mgr,
                 health=health,
                 ws=rs.ws,
                 state=rs.tick_state,
@@ -370,8 +411,6 @@ async def run(
     max_ticks: int | None = None,
 ) -> int:
     ctx = await run_startup(cfg)
-    market = MarketState()
-    grid = GridStrategy(cfg, ctx.sz_decimals)
     risk = RiskManager(
         ctx.client,
         baseline_equity=ctx.initial_account_value,
@@ -381,13 +420,26 @@ async def run(
     fills_mgr = FillEventsManager(client=ctx.client)
     await fills_mgr.reconcile()
 
+    # Build the pairs dict. Forager-disabled (default) → exactly one entry.
+    # Forager-enabled wiring lands in C3.
+    pair_name = cfg.strategy.pair
     triple_barrier = TripleBarrier(
         sl_pct=cfg.strategy.sl_pct,
         tp_pct=cfg.strategy.tp_pct,
         ttl_s=float(cfg.strategy.exit_ttl_s),
         consecutive_breaches_required=cfg.strategy.sl_consecutive_breaches,
     )
-    exit_mgr = ExitManager(client=ctx.client, pair=cfg.strategy.pair, triple_barrier=triple_barrier)
+    pairs: dict[str, _PairRuntime] = {
+        pair_name: _PairRuntime(
+            pair=pair_name,
+            sz_decimals=ctx.sz_decimals,
+            market=MarketState(),
+            grid=GridStrategy(cfg, ctx.sz_decimals),
+            exit_mgr=ExitManager(
+                client=ctx.client, pair=pair_name, triple_barrier=triple_barrier
+            ),
+        )
+    }
 
     health = HealthState()
     server = HealthServer(cfg.observability.health_port, health)
@@ -405,16 +457,13 @@ async def run(
     rs = _RunnerState(
         ctx=ctx,
         cfg=cfg,
-        market=market,
-        grid=grid,
+        pairs=pairs,
         risk=risk,
         fills_mgr=fills_mgr,
-        exit_mgr=exit_mgr,
         health=health,
         server=server,
         ws=ws,
         tick_state={
-            "tracked_cloids": [],
             "replan_interval_s": replan_interval_s,
             "reconcile_every": reconcile_every,
             "equity_snapshot_every": equity_snapshot_every,
@@ -427,7 +476,8 @@ async def run(
     try:
         exit_code = await _run_loop(rs, tick_interval_s, max_ticks)
     finally:
-        await _graceful_shutdown(ctx.client, cfg.strategy.pair, rs.tick_state["tracked_cloids"])
+        for pr in rs.pairs.values():
+            await _graceful_shutdown(ctx.client, pr.pair, pr.tracked_cloids)
         if ws is not None:
             await ws.stop()
         await server.stop()
