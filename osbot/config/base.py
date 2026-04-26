@@ -27,6 +27,30 @@ class RiskConfig(BaseModel):
     min_notional_usd: float = Field(default=10.0, gt=0)
 
 
+DEFAULT_FORAGER_PAIRS: list[str] = [
+    "BTC", "ETH", "SOL", "HYPE", "DOGE", "ARB", "AVAX", "BNB",
+]
+
+
+class ForagerConfig(BaseModel):
+    """Multi-pair selection (Passivbot-style log_range * volume ranker).
+
+    Disabled by default — when off, the runner uses cfg.strategy.pair only and
+    behavior is identical to single-pair mode. lessons.md:205 — Trial #2
+    (single-position forager, top_n=1) was the best per-hour return across
+    four trials; multi-position dilutes the gain.
+    """
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    enabled: bool = False
+    candidate_pairs: list[str] = Field(default_factory=lambda: list(DEFAULT_FORAGER_PAIRS))
+    top_n: int = Field(default=1, ge=1, le=10)
+    rotate_every_s: int = Field(default=1800, ge=60)
+    log_range_window_min: int = Field(default=16, ge=4)
+    min_volume_usd_24h: float = Field(default=10_000.0, ge=0)
+
+
 class ObservabilityConfig(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
 
@@ -47,6 +71,7 @@ class BaseConfig(BaseModel):
     keyfile_password: SecretStr
     strategy: StrategyConfig = Field(default_factory=StrategyConfig)
     risk: RiskConfig = Field(default_factory=RiskConfig)
+    forager: ForagerConfig = Field(default_factory=ForagerConfig)
     observability: ObservabilityConfig = Field(default_factory=ObservabilityConfig)
 
     @property

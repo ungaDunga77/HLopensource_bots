@@ -19,12 +19,21 @@ Ranked by recommended order. Items are independent unless noted.
 
 ## Next session if time / energy (medium)
 
-### 3. Forager (multi-pair selection)
+### 3. Forager v1 — crypto-major rotation (multi-pair selection)
 **From:** Passivbot  
-**Why:** Highest single-change PnL multiplier. Trading 5 pairs in parallel multiplies fill opportunities 5x.  
-**What:** New `strategy/selection.py` (currently a stub) that ranks pairs by (vol × spread) every M minutes and picks top-N. Per-pair `MarketState`, `GridStrategy`, and `ExitManager`. Per-bot cloid prefix for fill attribution (item 4 below comes free).  
+**Why:** Highest single-change PnL multiplier. Trial #2 (single-position forager, long-only) produced the best per-hour return across all four testnet trials (+$0.116/h, lessons.md:205).  
+**What:** New `strategy/selection.py` ranker (log_range EMA 16-span + volume EMA 365-span, per Passivbot) selecting top-N every 30 min. Per-pair `MarketState`/`GridStrategy`/`ExitManager`. Per-pair cloid prefix for fill attribution (item 4 comes free). Default `top_n=1` (single-position; lessons.md:229 — multi-position dilutes gains).  
+**Universe (8 crypto majors):** BTC, ETH, SOL, HYPE, DOGE, ARB, AVAX, LINK. Validated against `meta_and_asset_ctxs` at startup.  
+**Rotation cadence:** 1800s (30 min) — 5-min cadence in Passivbot Trial #2 produced 0 fills on rotated-to BTC because new ladder didn't get enough replan cycles.  
 **Size:** Substantial — ~300-500 LOC, real architecture work, full plan-first session.  
 **Note:** Synthesis §5.7 deliberately excluded forager from v0 to nail single-pair first. Single-pair is now nailed. This is the natural v1.
+
+### 3b. Forager v2 — alt-asset forager (stocks/commodities)
+**From:** v1 design discussion + custom-bot-design-notes.md:252  
+**Why:** HL has `PAXG` (gold) and HIP-3 equity perps (`SPX`, mainnet adds NVDA/TSLA/AAPL/MSFT/GOOGL/COIN/MSTR/etc.). Lessons flag HIP-3 as a confirmed gap with first-mover advantage — "lower-sophistication flow and weaker MMs". DO NOT MIX with crypto in v1: stocks have weekend gaps, market hours, and different vol regimes — would either always-pick-crypto or get stuck Fri-close into Mon-gap.  
+**What:** Second forager *instance* alongside v1 with its own params: market-hours awareness (pause grid when market closed), gap-risk-aware position sizing, separate candidate universe `[PAXG, SPX, ...]`. Per-instance cloid prefix (item 4 dependency) attributes fills cleanly across both. Most testnet HIP-3 perps live mainnet-only — universe will need verification.  
+**Size:** Medium — ~150 LOC building on v1 infrastructure.  
+**Blocked by:** v1 working in steady state for at least 24h.
 
 ### 4. Multi-bot cloid prefix orchestration
 **From:** Passivbot  
