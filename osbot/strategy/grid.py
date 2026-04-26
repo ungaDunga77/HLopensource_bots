@@ -150,9 +150,22 @@ def _round_size(notional_usd: float, mid: float, sz_decimals: int) -> float:
     return rounded / factor
 
 
-def _round_price(price: float) -> float:
-    # BTC perp: round to whole dollar; under 5-sig-fig cap for prices < 100k.
-    return float(round(price))
+def _allowed_price_decimals(price: float, sz_decimals: int) -> int:
+    """HL perp price rule: at most 5 sig figs AND at most (6 - sz_decimals) decimals."""
+    if price <= 0:
+        return 0
+    if price >= 1:
+        int_digits = len(str(int(price)))
+        sig_fig_decimals = max(0, 5 - int_digits)
+    else:
+        leading_zeros = max(0, -math.floor(math.log10(price)) - 1)
+        sig_fig_decimals = leading_zeros + 5
+    max_decimals_perp = max(0, 6 - sz_decimals)
+    return min(sig_fig_decimals, max_decimals_perp)
+
+
+def _round_price(price: float, sz_decimals: int) -> float:
+    return round(price, _allowed_price_decimals(price, sz_decimals))
 
 
 class GridStrategy:
@@ -229,8 +242,8 @@ class GridStrategy:
 
         for i in range(1, self.grid_levels + 1):
             offset = (spacing_bps * i) / 10_000.0
-            buy_px = _round_price(mid * (1 - offset))
-            sell_px = _round_price(mid * (1 + offset))
+            buy_px = _round_price(mid * (1 - offset), self.sz_decimals)
+            sell_px = _round_price(mid * (1 + offset), self.sz_decimals)
             buy_cloid = OrderTag(
                 strategy_id=self.strategy_id, intent=OrderIntent.OPEN_GRID, level=i
             ).to_cloid()

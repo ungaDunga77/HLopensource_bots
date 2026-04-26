@@ -42,6 +42,7 @@ from osbot.state.fills import FillEventsManager
 from osbot.strategy.exit_manager import ExitManager
 from osbot.strategy.exits import TripleBarrier
 from osbot.strategy.grid import GridPlan, GridStrategy, MarketState, OrderSubmit
+from osbot.strategy.selection import ForagerSelector, prepare_forager_pairs
 
 log = get_logger("osbot.runner")
 
@@ -193,6 +194,10 @@ class _PairRuntime:
     Forager v1 keeps a dict of these on _RunnerState. When forager.enabled is
     False, the dict has exactly one entry (cfg.strategy.pair) and behavior is
     identical to single-pair mode.
+
+    `draining=True` marks a pair the forager has rotated out of: its tracked
+    grid is cancelled and `_tick_pair` skips replanning. ExitManager keeps
+    running so any open position exits naturally via TripleBarrier.
     """
 
     pair: str
@@ -201,6 +206,31 @@ class _PairRuntime:
     grid: GridStrategy
     exit_mgr: ExitManager
     tracked_cloids: list[str] = field(default_factory=list)
+    draining: bool = False
+
+
+def _build_pair_runtime(
+    cfg: BaseConfig, ctx: StartupContext, pair: str, sz_decimals: int, strategy_id: int
+) -> _PairRuntime:
+    triple_barrier = TripleBarrier(
+        sl_pct=cfg.strategy.sl_pct,
+        tp_pct=cfg.strategy.tp_pct,
+        ttl_s=float(cfg.strategy.exit_ttl_s),
+        consecutive_breaches_required=cfg.strategy.sl_consecutive_breaches,
+    )
+    grid = GridStrategy(cfg, sz_decimals, strategy_id=strategy_id)
+    exit_mgr = ExitManager(client=ctx.client, pair=pair, triple_barrier=triple_barrier)
+    return _PairRuntime(
+        pair=pair, sz_decimals=sz_decimals, market=MarketState(), grid=grid, exit_mgr=exit_mgr
+    )
+
+
+def _strategy_id_for(pair: str) -> int:
+    """Stable per-pair cloid prefix so concurrent pairs get attributable fills."""
+    h = 0
+    for ch in pair:
+        h = (h * 131 + ord(ch)) & 0xFFFF
+    return h or 0xCAFE
 
 
 async def _tick_pair(
@@ -233,6 +263,9 @@ async def _tick_pair(
         shadow.snapshot("exit_close", {"tick": tick_idx, "pair": pr.pair, "mid": mid})
         health.position_count = 0
 
+    if pr.draining:
+        return
+
     if pr.grid.should_replan(now, state["replan_interval_s"], have_grid=bool(pr.tracked_cloids)):
         plan = pr.grid.plan(
             now=now,
@@ -258,7 +291,68 @@ async def _tick_pair(
         pr.tracked_cloids = await _reconcile_orders(client, pr.pair, pr.tracked_cloids)
 
 
-async def _tick(
+async def _rotate_forager(
+    *,
+    ctx: StartupContext,
+    cfg: BaseConfig,
+    pairs: dict[str, _PairRuntime],
+    selector: ForagerSelector,
+    pair_meta: dict[str, int],
+    now: float,
+) -> None:
+    """Run one forager rotation: drain pairs no longer in top_n, add new ones."""
+    desired = set(selector.top_n(cfg.forager.top_n))
+    if not desired:
+        log.warning("forager: rank produced empty top_n; skipping rotation")
+        return
+    active = {p for p, pr in pairs.items() if not pr.draining}
+    to_add = desired - active
+    to_drop = active - desired
+
+    for p in to_drop:
+        pr = pairs[p]
+        pr.draining = True
+        for cloid in list(pr.tracked_cloids):
+            await _cancel_cloid(ctx.client, p, cloid)
+        pr.tracked_cloids = []
+        log.info("forager: draining %s (rotated out)", p)
+
+    for p in to_add:
+        if p in pairs:
+            pairs[p].draining = False
+            log.info("forager: re-activating %s", p)
+            continue
+        if p not in pair_meta:
+            log.warning("forager: cannot add %s — no szDecimals (skipped)", p)
+            continue
+        pr = _build_pair_runtime(cfg, ctx, p, pair_meta[p], _strategy_id_for(p))
+        pairs[p] = pr
+        log.info("forager: added %s (szDec=%d)", p, pair_meta[p])
+
+    # GC fully-drained pairs (draining + no orders + no position-state).
+    to_remove: list[str] = []
+    for p, pr in pairs.items():
+        if not pr.draining:
+            continue
+        if pr.tracked_cloids:
+            continue
+        # ExitManager keeps state while a position exists; once flat it clears.
+        if pr.exit_mgr._state and pr.exit_mgr._state.get(p) is not None:
+            continue
+        to_remove.append(p)
+    for p in to_remove:
+        log.info("forager: removed %s (drained + flat)", p)
+        del pairs[p]
+
+    log.info(
+        "forager rotation: active=%s drained=%s now=%.0f",
+        sorted(p for p, pr in pairs.items() if not pr.draining),
+        sorted(p for p, pr in pairs.items() if pr.draining),
+        now,
+    )
+
+
+async def _tick(  # noqa: PLR0912
     *,
     ctx: StartupContext,
     cfg: BaseConfig,
@@ -267,6 +361,8 @@ async def _tick(
     fills_mgr: FillEventsManager,
     health: HealthState,
     ws: WsSubscriber | None,
+    selector: ForagerSelector | None,
+    pair_meta: dict[str, int],
     state: dict[str, Any],
     tick_idx: int,
 ) -> None:
@@ -291,6 +387,30 @@ async def _tick(
 
     await risk.precheck()
 
+    # Forager: feed selector with mids each tick (cheap), update ctxs at the
+    # funding cadence, rotate at rotate_every_s.
+    if selector is not None and cfg.forager.enabled:
+        # Pull all_mids once per tick when selector is active. For non-active
+        # candidates we don't have cached_mid (no per-pair caching beyond WS).
+        try:
+            all_mids = await client.all_mids()
+            selector.update_mids(now, all_mids)  # type: ignore[arg-type]
+        except AppError as e:
+            log.warning("forager: all_mids failed: %s (selector starved this tick)", e.message)
+        if tick_idx % state["funding_sample_every"] == 0:
+            try:
+                meta_ctxs = await client.meta_and_asset_ctxs()
+                selector.update_asset_ctxs(meta_ctxs[0].get("universe", []), meta_ctxs[1])
+            except AppError as e:
+                log.warning("forager: meta_and_asset_ctxs failed: %s", e.message)
+        last_rot = state.get("last_rotate_ts", 0.0)
+        if (now - last_rot) >= cfg.forager.rotate_every_s:
+            state["last_rotate_ts"] = now
+            await _rotate_forager(
+                ctx=ctx, cfg=cfg, pairs=pairs, selector=selector,
+                pair_meta=pair_meta, now=now,
+            )
+
     for pr in list(pairs.values()):
         await _tick_pair(
             pr, ctx=ctx, risk=risk, health=health, state=state, tick_idx=tick_idx, now=now
@@ -299,10 +419,14 @@ async def _tick(
     health.open_order_count = sum(len(pr.tracked_cloids) for pr in pairs.values())
 
     if tick_idx % state["equity_snapshot_every"] == 0:
-        # Account-level snapshot — record equity once. Mid is for context only;
-        # use the configured pair's cached mid if available, else any active.
-        ref_pair = cfg.strategy.pair if cfg.strategy.pair in pairs else next(iter(pairs))
-        ref_mid = client.cached_mid(ref_pair)
+        # Account-level snapshot. Pick a ref pair for context; tolerate empty
+        # pairs dict (forager warm-up window before selector has enough data).
+        ref_pair: str | None = None
+        if cfg.strategy.pair in pairs:
+            ref_pair = cfg.strategy.pair
+        elif pairs:
+            ref_pair = next(iter(pairs))
+        ref_mid = client.cached_mid(ref_pair) if ref_pair else None
         shadow.snapshot(
             "equity",
             {
@@ -313,13 +437,11 @@ async def _tick(
             },
         )
 
-    if tick_idx % state["funding_sample_every"] == 0:
-        # Sample funding for every active pair (cheap — one info call each).
+    if tick_idx % state["funding_sample_every"] == 0 and pairs:
         for pair_name in pairs:
             rate = await client.funding_rate(pair_name)
             if rate is not None:
                 shadow.record_funding_rate(pair_name, rate)
-        # /health surfaces the configured/primary pair's rate for back-compat.
         primary = cfg.strategy.pair if cfg.strategy.pair in pairs else next(iter(pairs))
         primary_rate = await client.funding_rate(primary)
         if primary_rate is not None:
@@ -336,6 +458,8 @@ class _RunnerState:
     health: HealthState
     server: HealthServer
     ws: WsSubscriber | None
+    selector: ForagerSelector | None
+    pair_meta: dict[str, int]
     tick_state: dict[str, Any]
 
 
@@ -357,6 +481,8 @@ async def _run_loop(rs: _RunnerState, tick_interval_s: float, max_ticks: int | N
                 fills_mgr=rs.fills_mgr,
                 health=health,
                 ws=rs.ws,
+                selector=rs.selector,
+                pair_meta=rs.pair_meta,
                 state=rs.tick_state,
                 tick_idx=tick_idx,
             )
@@ -420,26 +546,27 @@ async def run(
     fills_mgr = FillEventsManager(client=ctx.client)
     await fills_mgr.reconcile()
 
-    # Build the pairs dict. Forager-disabled (default) → exactly one entry.
-    # Forager-enabled wiring lands in C3.
-    pair_name = cfg.strategy.pair
-    triple_barrier = TripleBarrier(
-        sl_pct=cfg.strategy.sl_pct,
-        tp_pct=cfg.strategy.tp_pct,
-        ttl_s=float(cfg.strategy.exit_ttl_s),
-        consecutive_breaches_required=cfg.strategy.sl_consecutive_breaches,
-    )
-    pairs: dict[str, _PairRuntime] = {
-        pair_name: _PairRuntime(
-            pair=pair_name,
-            sz_decimals=ctx.sz_decimals,
-            market=MarketState(),
-            grid=GridStrategy(cfg, ctx.sz_decimals),
-            exit_mgr=ExitManager(
-                client=ctx.client, pair=pair_name, triple_barrier=triple_barrier
-            ),
+    # Build the pairs dict. Forager-disabled (default) → exactly one entry
+    # for cfg.strategy.pair. Forager-enabled → start empty; first rotation
+    # at tick 1 fills it with top_n picks.
+    selector: ForagerSelector | None = None
+    pair_meta: dict[str, int] = {}
+    pairs: dict[str, _PairRuntime] = {}
+
+    if cfg.forager.enabled:
+        pair_meta = await prepare_forager_pairs(
+            ctx.client, cfg.forager.candidate_pairs, cfg.strategy.leverage
         )
-    }
+        selector = ForagerSelector(
+            candidates=list(pair_meta.keys()),
+            log_range_window_min=cfg.forager.log_range_window_min,
+            min_volume_usd_24h=cfg.forager.min_volume_usd_24h,
+        )
+        log.info("runner: forager enabled — %d candidate pairs prepared", len(pair_meta))
+    else:
+        pairs[cfg.strategy.pair] = _build_pair_runtime(
+            cfg, ctx, cfg.strategy.pair, ctx.sz_decimals, _strategy_id_for(cfg.strategy.pair)
+        )
 
     health = HealthState()
     server = HealthServer(cfg.observability.health_port, health)
@@ -463,12 +590,17 @@ async def run(
         health=health,
         server=server,
         ws=ws,
+        selector=selector,
+        pair_meta=pair_meta,
         tick_state={
             "replan_interval_s": replan_interval_s,
             "reconcile_every": reconcile_every,
             "equity_snapshot_every": equity_snapshot_every,
             "fill_reconcile_every": fill_reconcile_every,
             "funding_sample_every": funding_sample_every,
+            # Force initial rotation on first tick: last_rotate_ts=0 makes
+            # (now - last_rotate_ts) >= rotate_every_s trivially true.
+            "last_rotate_ts": 0.0,
         },
     )
 

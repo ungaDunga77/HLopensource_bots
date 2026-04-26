@@ -141,6 +141,11 @@ class HLClient:
         result = await self._info_call(self._info.meta)
         return dict(result)
 
+    async def meta_and_asset_ctxs(self) -> tuple[dict[str, Any], list[dict[str, Any]]]:
+        """Return (meta, asset_ctxs). Asset_ctxs holds funding/volume/oracle per pair."""
+        result = await self._info_call(self._info.meta_and_asset_ctxs)
+        return result[0], list(result[1])
+
     async def funding_rate(self, pair: str) -> float | None:
         """Fetch current hourly funding rate for `pair`. Returns None if not found.
 

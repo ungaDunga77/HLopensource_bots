@@ -26,6 +26,8 @@ from collections import deque
 from dataclasses import dataclass, field
 from typing import Any
 
+from osbot.connector.errors import AppError, StructuralError
+from osbot.connector.hl_client import HLClient
 from osbot.observability import get_logger
 
 log = get_logger("osbot.selection")
@@ -130,3 +132,36 @@ class ForagerSelector:
 
     def top_n(self, n: int) -> list[str]:
         return [s.pair for s in self.rank()[:n]]
+
+
+async def prepare_forager_pairs(
+    client: HLClient,
+    candidates: list[str],
+    leverage: int,
+) -> dict[str, int]:
+    """Validate candidate pairs against HL meta + set isolated leverage on each.
+
+    Returns a `pair → szDecimals` map containing only pairs that exist in HL's
+    universe. Pairs missing from the venue are dropped with a warning rather
+    than raising — the forager is resilient to partial-universe deployments
+    (e.g. some HL pairs are mainnet-only).
+    """
+    meta = await client.meta()
+    universe = {u["name"]: int(u.get("szDecimals", 0)) for u in meta.get("universe", [])}
+    valid: dict[str, int] = {}
+    for pair in candidates:
+        if pair not in universe:
+            log.warning("forager: candidate %s not in HL universe; dropping", pair)
+            continue
+        valid[pair] = universe[pair]
+    if not valid:
+        raise StructuralError("forager: no candidate pairs found on HL")
+    for pair in valid:
+        try:
+            await client.set_leverage(pair, leverage, is_cross=False)
+        except AppError as e:
+            raise StructuralError(
+                f"forager: set_leverage failed for {pair}: {e.message}", cause=e
+            ) from e
+    log.info("forager: prepared %d pairs (leverage=%dx isolated)", len(valid), leverage)
+    return valid
