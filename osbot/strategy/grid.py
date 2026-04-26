@@ -23,17 +23,36 @@ from osbot.strategy.tags import OrderIntent, OrderTag
 log = get_logger("osbot.grid")
 
 _MIN_SIGMA_SAMPLES = 8
-_MIN_SLOPE_SAMPLES = 2
 
 
 @dataclass
 class MarketState:
-    """Rolling price-sample store. Caller invokes `sample(ts, mid)` each tick."""
+    """Rolling price store with 1-min-bucketed sigma + dual time-weighted EMA slope.
 
-    sigma_window_s: float = 3600.0
-    ema_window_s: float = 4 * 3600.0
-    max_age_s: float = 4 * 3600.0
+    Sigma:
+      `sample()` is called every tick (~1s). Per-tick samples are dominated by
+      noise, so we keep a parallel deque of (minute, last_price_in_that_minute)
+      entries and compute sigma over log-returns of those minute closes. Eight
+      minute-buckets minimum before we report a non-zero sigma.
+
+    Slope:
+      Two EMAs at different timescales (fast=30min, slow=4h), updated with
+      time-aware alpha = 1 - exp(-dt / tau). The slope signal is the relative
+      gap (fast - slow) / slow, in bps — a classic EMA-cross. Responds to
+      fresh trend within minutes; warm-up gate prevents reporting until the
+      slow EMA has accumulated at least slow_tau/4 of weight (~1h elapsed).
+    """
+
+    sigma_window_s: float = 3600.0  # 60 minute-buckets retained for sigma
+    ema_fast_tau_s: float = 1800.0  # 30min — responsive to fresh trend
+    ema_slow_tau_s: float = 14400.0  # 4h — long-run trend reference
+    max_age_s: float = 14400.0  # raw-sample retention (audit/debug)
     _samples: deque[tuple[float, float]] = field(default_factory=deque)
+    _minute_samples: deque[tuple[int, float]] = field(default_factory=deque)
+    _ema_fast: float = 0.0
+    _ema_slow: float = 0.0
+    _last_ema_ts: float = 0.0
+    _ema_initialized: bool = False
 
     def sample(self, ts: float, mid: float) -> None:
         if mid <= 0:
@@ -45,19 +64,43 @@ class MarketState:
         while self._samples and self._samples[0][0] < cutoff:
             self._samples.popleft()
 
-    def sigma_bps(self, now: float) -> float:
-        """Std-dev of log-returns over the last `sigma_window_s`, expressed in bps.
+        # 1-min bucketed close series for sigma.
+        minute = int(ts // 60)
+        if not self._minute_samples or self._minute_samples[-1][0] != minute:
+            self._minute_samples.append((minute, mid))
+        else:
+            # Same minute: keep the last-observed price as that minute's "close".
+            self._minute_samples[-1] = (minute, mid)
+        sigma_minute_cutoff = minute - int(self.sigma_window_s // 60)
+        while self._minute_samples and self._minute_samples[0][0] < sigma_minute_cutoff:
+            self._minute_samples.popleft()
 
-        Returns 0.0 if not enough samples (<8).
+        # Time-weighted dual-EMA for slope.
+        if not self._ema_initialized:
+            self._ema_fast = mid
+            self._ema_slow = mid
+            self._last_ema_ts = ts
+            self._ema_initialized = True
+            return
+        dt = max(ts - self._last_ema_ts, 0.0)
+        alpha_fast = 1.0 - math.exp(-dt / self.ema_fast_tau_s)
+        alpha_slow = 1.0 - math.exp(-dt / self.ema_slow_tau_s)
+        self._ema_fast += alpha_fast * (mid - self._ema_fast)
+        self._ema_slow += alpha_slow * (mid - self._ema_slow)
+        self._last_ema_ts = ts
+
+    def sigma_bps(self, now: float) -> float:
+        """Std-dev of log-returns over 1-min closes, expressed in bps.
+
+        Returns 0.0 if fewer than 8 minute-buckets accumulated.
         """
-        cutoff = now - self.sigma_window_s
-        subset = [m for (t, m) in self._samples if t >= cutoff]
-        if len(subset) < _MIN_SIGMA_SAMPLES:
+        del now  # bucketing is self-contained
+        if len(self._minute_samples) < _MIN_SIGMA_SAMPLES:
             return 0.0
+        prices = [p for (_, p) in self._minute_samples]
         returns: list[float] = []
-        for i in range(1, len(subset)):
-            prev = subset[i - 1]
-            cur = subset[i]
+        for i in range(1, len(prices)):
+            prev, cur = prices[i - 1], prices[i]
             if prev > 0 and cur > 0:
                 returns.append(math.log(cur / prev))
         if not returns:
@@ -67,19 +110,20 @@ class MarketState:
         return math.sqrt(var) * 10_000.0
 
     def ema_slope_bps(self, now: float) -> float:
-        """Rough trend gauge: % change of EMA-mid over `ema_window_s`, in bps.
+        """Dual-EMA trend gauge: (fast - slow) / slow, in bps.
 
-        Uses first and last sample in window. Returns 0.0 if <2 samples.
+        Returns 0.0 during warm-up (slow EMA needs ~1h of samples to be
+        meaningful) or when the slow EMA hasn't been initialised yet.
         """
-        cutoff = now - self.ema_window_s
-        subset = [(t, m) for (t, m) in self._samples if t >= cutoff]
-        if len(subset) < _MIN_SLOPE_SAMPLES:
+        del now
+        if not self._ema_initialized or self._ema_slow <= 0:
             return 0.0
-        first = subset[0][1]
-        last = subset[-1][1]
-        if first <= 0:
+        if not self._samples:
             return 0.0
-        return ((last - first) / first) * 10_000.0
+        elapsed = self._last_ema_ts - self._samples[0][0]
+        if elapsed < self.ema_slow_tau_s / 4.0:
+            return 0.0
+        return ((self._ema_fast - self._ema_slow) / self._ema_slow) * 10_000.0
 
 
 @dataclass

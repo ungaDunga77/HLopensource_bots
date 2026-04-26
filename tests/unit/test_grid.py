@@ -52,11 +52,43 @@ def test_market_sigma_volatile_series_is_positive() -> None:
 
 
 def test_market_ema_slope_detects_trend() -> None:
+    """Need >=1h elapsed (slow_tau/4 warm-up) before slope is meaningful."""
+    m = MarketState()
+    # Climb 60_000 -> 72_000 over 4h (240 minutes); fast EMA should lead slow.
+    for i in range(241):
+        m.sample(ts=float(i * 60), mid=60_000.0 + i * 50.0)
+    slope = m.ema_slope_bps(now=241 * 60)
+    assert slope > 100  # fast > slow during a sustained uptrend
+
+
+def test_market_ema_slope_zero_during_warmup() -> None:
     m = MarketState()
     for i in range(30):
         m.sample(ts=float(i * 60), mid=60_000.0 + i * 100.0)
-    slope = m.ema_slope_bps(now=30 * 60)
-    assert slope > 400  # ~483bps over the window
+    # Only 30min of samples; slow_tau/4 = 60min warm-up not met.
+    assert m.ema_slope_bps(now=30 * 60) == 0.0
+
+
+def test_market_ema_slope_zero_on_constant_series() -> None:
+    m = MarketState()
+    for i in range(241):
+        m.sample(ts=float(i * 60), mid=60_000.0)
+    assert m.ema_slope_bps(now=241 * 60) == 0.0
+
+
+def test_market_minute_bucketing_keeps_last_price() -> None:
+    """Multiple sub-minute samples collapse to one bucket holding the last price."""
+    m = MarketState()
+    # Three samples within the same minute boundary; sigma should see only one.
+    m.sample(ts=0.0, mid=60_000.0)
+    m.sample(ts=20.0, mid=60_100.0)
+    m.sample(ts=50.0, mid=60_200.0)
+    # Move to next minute.
+    m.sample(ts=60.0, mid=60_300.0)
+    assert len(m._minute_samples) == 2
+    # First minute bucket should hold the last price observed in that minute.
+    assert m._minute_samples[0] == (0, 60_200.0)
+    assert m._minute_samples[1] == (1, 60_300.0)
 
 
 def test_grid_plan_submits_ten_orders_when_flat() -> None:
@@ -92,10 +124,11 @@ def test_grid_plan_cancels_existing() -> None:
 def test_grid_plan_pauses_on_trend() -> None:
     g = GridStrategy(_cfg(), sz_decimals=5)
     m = MarketState()
-    for i in range(60):
-        m.sample(ts=float(i * 60), mid=60_000.0 + i * 50.0)  # ~5000bps climb
+    # Need >1h for slope warm-up; sustained climb gives a clear EMA-cross signal.
+    for i in range(241):
+        m.sample(ts=float(i * 60), mid=60_000.0 + i * 50.0)
     plan = g.plan(
-        now=60 * 60, mid=63_000.0, market=m, balance_usd=10_000.0, open_grid_cloids=["0xa"]
+        now=241 * 60, mid=72_000.0, market=m, balance_usd=10_000.0, open_grid_cloids=["0xa"]
     )
     assert plan.submits == []
     assert plan.cancels == ["0xa"]
@@ -150,21 +183,22 @@ def test_should_replan_initial_call_is_true() -> None:
 def test_should_replan_respects_pause_within_interval() -> None:
     g = GridStrategy(_cfg(), sz_decimals=5)
     m = MarketState()
-    for i in range(60):
-        m.sample(ts=float(i * 60), mid=60_000.0 + i * 50.0)  # trending
-    g.plan(now=60 * 60, mid=63_000.0, market=m, balance_usd=10_000.0, open_grid_cloids=[])
+    # Need >1h for slope warm-up before the trend-pause branch triggers.
+    for i in range(241):
+        m.sample(ts=float(i * 60), mid=60_000.0 + i * 50.0)
+    g.plan(now=241 * 60, mid=72_000.0, market=m, balance_usd=10_000.0, open_grid_cloids=[])
     # Just paused; even though have_grid=False, do not replan within interval.
-    assert not g.should_replan(now=60 * 60 + 60, replan_interval_s=300.0, have_grid=False)
+    assert not g.should_replan(now=241 * 60 + 60, replan_interval_s=300.0, have_grid=False)
 
 
 def test_should_replan_after_interval_when_paused() -> None:
     g = GridStrategy(_cfg(), sz_decimals=5)
     m = MarketState()
-    for i in range(60):
+    for i in range(241):
         m.sample(ts=float(i * 60), mid=60_000.0 + i * 50.0)
-    g.plan(now=60 * 60, mid=63_000.0, market=m, balance_usd=10_000.0, open_grid_cloids=[])
+    g.plan(now=241 * 60, mid=72_000.0, market=m, balance_usd=10_000.0, open_grid_cloids=[])
     # Past the interval, replan even if still paused.
-    assert g.should_replan(now=60 * 60 + 400, replan_interval_s=300.0, have_grid=False)
+    assert g.should_replan(now=241 * 60 + 400, replan_interval_s=300.0, have_grid=False)
 
 
 def test_should_replan_when_grid_lost_to_fills() -> None:
