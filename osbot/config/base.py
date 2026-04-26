@@ -11,7 +11,7 @@ class StrategyConfig(BaseModel):
     pair: str = "BTC"
     leverage: int = Field(default=3, ge=1, le=50)
     grid_levels: int = Field(default=7, ge=1, le=50)
-    wallet_exposure_limit: float = Field(default=0.20, gt=0, le=1.0)
+    wallet_exposure_limit: float = Field(default=0.30, gt=0, le=1.0)
     range_bps_min: int = Field(default=30, ge=1)
     rolling_sigma_window_min: int = Field(default=60, ge=1)
     tp_pct: float = Field(default=0.0015, gt=0, le=0.1)
