@@ -46,11 +46,11 @@ from osbot.strategy.grid import GridPlan, GridStrategy, MarketState, OrderSubmit
 log = get_logger("osbot.runner")
 
 
-DEFAULT_TICK_INTERVAL_S = 2.0
+DEFAULT_TICK_INTERVAL_S = 1.0
 DEFAULT_REPLAN_INTERVAL_S = 300.0
-DEFAULT_RECONCILE_EVERY = 30
-DEFAULT_EQUITY_SNAPSHOT_EVERY = 60
-DEFAULT_FILL_RECONCILE_EVERY = 30  # REST safety-net cadence (WS is primary)
+DEFAULT_RECONCILE_EVERY = 60  # tick-count counts double now (1s ticks)
+DEFAULT_EQUITY_SNAPSHOT_EVERY = 120
+DEFAULT_FILL_RECONCILE_EVERY = 60  # REST safety-net cadence (WS is primary)
 
 _BACKOFF_BASE_S = 2.0
 _BACKOFF_CAP_S = 60.0
@@ -391,7 +391,8 @@ async def run(
         ws = WsSubscriber(mode=cfg.mode, account_address=cfg.account_address)
         ws.subscribe_all_mids(ctx.client.update_mids)
         ws.subscribe_user_fills(lambda f: (fills_mgr.ingest(f), None)[1])
-        log.info("runner: WS subscriber started (allMids + userFills)")
+        ws.start_watchdog()
+        log.info("runner: WS subscriber started (allMids + userFills, with reconnect)")
 
     rs = _RunnerState(
         ctx=ctx,
@@ -419,7 +420,7 @@ async def run(
     finally:
         await _graceful_shutdown(ctx.client, cfg.strategy.pair, rs.tick_state["tracked_cloids"])
         if ws is not None:
-            ws.stop()
+            await ws.stop()
         await server.stop()
         ctx.shadow.snapshot(
             "runner_exit",

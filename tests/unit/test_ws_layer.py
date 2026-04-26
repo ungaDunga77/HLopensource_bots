@@ -157,9 +157,10 @@ def test_ws_subscriber_handles_malformed_message(fake_info: Any) -> None:
     assert received == []
 
 
-def test_ws_subscriber_stop_calls_ws_manager(fake_info: Any) -> None:
+@pytest.mark.asyncio
+async def test_ws_subscriber_stop_calls_ws_manager(fake_info: Any) -> None:
     ws = WsSubscriber(mode="testnet", account_address="0xabc")
-    ws.stop()
+    await ws.stop()
     fake_info.ws_manager.stop.assert_called_once()
 
 
@@ -170,3 +171,67 @@ def test_ws_subscriber_is_connected_stale_after_threshold(fake_info: Any) -> Non
         ws._last_message_ts = time.time() - 60.0
     assert not ws.is_connected(max_age_s=30.0)
     del fake_info
+
+
+def test_reconnect_replays_subscriptions(fake_info: Any) -> None:
+    ws = WsSubscriber(mode="testnet", account_address="0xabc")
+    ws.subscribe_all_mids(lambda mids: None)
+    ws.subscribe_user_fills(lambda f: None)
+    initial_calls = fake_info.subscribe.call_count
+    assert initial_calls == 2
+
+    ws.reconnect()
+
+    # Old ws_manager.stop was called; new Info created (Info() called twice
+    # total: initial + reconnect); both subscriptions replayed on the new Info.
+    fake_info.ws_manager.stop.assert_called()
+    assert fake_info.subscribe.call_count == initial_calls + 2
+
+
+@pytest.mark.asyncio
+async def test_watchdog_triggers_reconnect_on_stale(fake_info: Any) -> None:
+    """Watchdog detects stale + dead WS and calls reconnect."""
+    ws = WsSubscriber(mode="testnet", account_address="0xabc")
+    ws.subscribe_all_mids(lambda mids: None)
+    fake_info.ws_manager.is_alive.return_value = False  # appear dead
+
+    with patch.object(ws, "reconnect") as mock_reconnect, \
+         patch("osbot.connector.ws_subscriber._WATCHDOG_INTERVAL_S", 0.05), \
+         patch("osbot.connector.ws_subscriber._RECONNECT_BACKOFF_BASE_S", 0.01), \
+         patch("osbot.connector.ws_subscriber._RECONNECT_BACKOFF_CAP_S", 0.05):
+        ws.start_watchdog()
+        # Give the watchdog a few cycles to run.
+        await asyncio.sleep(0.3)
+        await ws.stop()
+
+    assert mock_reconnect.called
+    assert ws._reconnect_attempts >= 1
+
+
+@pytest.mark.asyncio
+async def test_watchdog_resets_attempts_when_healthy(fake_info: Any) -> None:
+    ws = WsSubscriber(mode="testnet", account_address="0xabc")
+    ws.subscribe_all_mids(lambda mids: None)
+    fake_info.ws_manager.is_alive.return_value = True
+    # Mark a recent message so is_connected() returns True.
+    with ws._lock:
+        ws._last_message_ts = time.time()
+    # Pretend a previous run had failures.
+    ws._reconnect_attempts = 3
+
+    with patch("osbot.connector.ws_subscriber._WATCHDOG_INTERVAL_S", 0.05):
+        ws.start_watchdog()
+        await asyncio.sleep(0.2)
+        await ws.stop()
+
+    assert ws._reconnect_attempts == 0
+
+
+@pytest.mark.asyncio
+async def test_stop_cancels_watchdog(fake_info: Any) -> None:
+    ws = WsSubscriber(mode="testnet", account_address="0xabc")
+    with patch("osbot.connector.ws_subscriber._WATCHDOG_INTERVAL_S", 60.0):
+        ws.start_watchdog()
+        assert ws._watchdog_task is not None
+        await ws.stop()
+        assert ws._watchdog_task is None
