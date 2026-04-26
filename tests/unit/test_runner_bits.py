@@ -7,11 +7,11 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from osbot.connector.errors import AppError, AuthError, StructuralError
+from osbot.connector.errors import AppError, AuthError, ErrorCategory, StructuralError
 from osbot.connector.hl_client import HLClient
 from osbot.observability.health import HealthState
 from osbot.risk.manager import RiskManager
-from osbot.runner import _apply_plan, _reconcile_orders, _submit_one
+from osbot.runner import _apply_plan, _reconcile_orders, _RetryState, _submit_one
 from osbot.strategy.grid import GridPlan, OrderSubmit
 from osbot.strategy.tags import OrderIntent
 
@@ -111,6 +111,43 @@ async def test_apply_plan_cancels_then_submits() -> None:
     assert live == ["0xnew1", "0xnew2"]
     assert c.cancel_by_cloid.call_count == 2  # type: ignore[attr-defined]
     assert c.place_order.call_count == 2  # type: ignore[attr-defined]
+
+
+def test_retry_state_no_backoff_for_structural() -> None:
+    r = _RetryState()
+    assert r.on_error(ErrorCategory.STRUCTURAL) == 0.0
+    assert r.consecutive == 0
+
+
+def test_retry_state_no_backoff_for_auth() -> None:
+    r = _RetryState()
+    assert r.on_error(ErrorCategory.AUTH) == 0.0
+
+
+def test_retry_state_exponential_for_rate_limit() -> None:
+    r = _RetryState()
+    assert r.on_error(ErrorCategory.RATE_LIMIT) == 2.0
+    assert r.on_error(ErrorCategory.RATE_LIMIT) == 4.0
+    assert r.on_error(ErrorCategory.RATE_LIMIT) == 8.0
+    assert r.on_error(ErrorCategory.RATE_LIMIT) == 16.0
+
+
+def test_retry_state_caps_at_60s() -> None:
+    r = _RetryState()
+    for _ in range(10):
+        last = r.on_error(ErrorCategory.NETWORK)
+    assert last == 60.0
+
+
+def test_retry_state_resets_on_success() -> None:
+    r = _RetryState()
+    r.on_error(ErrorCategory.NETWORK)
+    r.on_error(ErrorCategory.NETWORK)
+    assert r.consecutive == 2
+    r.on_success()
+    assert r.consecutive == 0
+    # Next error starts from base again.
+    assert r.on_error(ErrorCategory.NETWORK) == 2.0
 
 
 @pytest.mark.asyncio

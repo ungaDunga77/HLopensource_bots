@@ -31,7 +31,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from osbot.config import BaseConfig
-from osbot.connector.errors import AppError, AuthError, StructuralError
+from osbot.connector.errors import AppError, AuthError, ErrorCategory, StructuralError
 from osbot.connector.hl_client import HLClient
 from osbot.observability import get_logger
 from osbot.observability.health import HealthServer, HealthState
@@ -49,6 +49,35 @@ DEFAULT_TICK_INTERVAL_S = 2.0
 DEFAULT_REPLAN_INTERVAL_S = 300.0
 DEFAULT_RECONCILE_EVERY = 30
 DEFAULT_EQUITY_SNAPSHOT_EVERY = 60
+
+_BACKOFF_BASE_S = 2.0
+_BACKOFF_CAP_S = 60.0
+_BACKOFF_CATEGORIES: frozenset[ErrorCategory] = frozenset(
+    {ErrorCategory.NETWORK, ErrorCategory.RATE_LIMIT}
+)
+
+
+@dataclass
+class _RetryState:
+    """Exponential-backoff counter for retryable upstream errors.
+
+    HL testnet has periodic ~2-min outage windows; without backoff the runner
+    hammers the API at full tick cadence the entire window, both polluting the
+    error counter and contributing to the 429 storm. Backoff doubles per
+    consecutive retryable failure (network or rate_limit) up to a 60s cap;
+    other categories are unaffected.
+    """
+
+    consecutive: int = 0
+
+    def on_error(self, category: ErrorCategory) -> float:
+        if category not in _BACKOFF_CATEGORIES:
+            return 0.0
+        self.consecutive += 1
+        return float(min(_BACKOFF_CAP_S, _BACKOFF_BASE_S * (2 ** (self.consecutive - 1))))
+
+    def on_success(self) -> None:
+        self.consecutive = 0
 
 
 async def _cancel_cloid(client: HLClient, pair: str, cloid: str) -> None:
@@ -248,9 +277,11 @@ async def _run_loop(rs: _RunnerState, tick_interval_s: float, max_ticks: int | N
     tick_idx = 0
     exit_code = 0
     health = rs.health
+    retry = _RetryState()
     while not health.graceful_stop:
         tick_idx += 1
         tick_start = time.monotonic()
+        backoff_s = 0.0
         try:
             await _tick(
                 ctx=rs.ctx,
@@ -264,6 +295,7 @@ async def _run_loop(rs: _RunnerState, tick_interval_s: float, max_ticks: int | N
                 state=rs.tick_state,
                 tick_idx=tick_idx,
             )
+            retry.on_success()
             health.tick_count = tick_idx
             health.last_tick_ts = time.time()
             health.account_value = rs.risk.last_equity
@@ -278,12 +310,14 @@ async def _run_loop(rs: _RunnerState, tick_interval_s: float, max_ticks: int | N
             exit_code = 3
             break
         except AppError as e:
+            backoff_s = retry.on_error(e.category)
             log.warning(
-                "runner tick %d: %s (%s, retryable=%s)",
+                "runner tick %d: %s (%s, retryable=%s, backoff=%.1fs)",
                 tick_idx,
                 e.message,
                 e.category,
                 e.retryable,
+                backoff_s,
             )
             health.errors += 1
         except Exception:
@@ -293,7 +327,8 @@ async def _run_loop(rs: _RunnerState, tick_interval_s: float, max_ticks: int | N
             log.info("runner: max_ticks=%d reached, stopping", max_ticks)
             break
         elapsed = time.monotonic() - tick_start
-        await asyncio.sleep(max(0.0, tick_interval_s - elapsed))
+        sleep_s = max(tick_interval_s - elapsed, 0.0) + backoff_s
+        await asyncio.sleep(sleep_s)
     rs.tick_state["final_ticks"] = tick_idx
     return exit_code
 
