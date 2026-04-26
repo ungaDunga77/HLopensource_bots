@@ -30,6 +30,7 @@ class HealthState:
     errors: int = 0
     ws_connected: bool = False
     graceful_stop: bool = False
+    funding_rate_hourly: float | None = None
 
     def snapshot(self) -> dict[str, Any]:
         now = time.time()
@@ -50,6 +51,12 @@ class HealthState:
             "open_order_count": self.open_order_count,
             "ws_connected": self.ws_connected,
             "graceful_stop": self.graceful_stop,
+            "funding_rate_hourly": self.funding_rate_hourly,
+            "funding_apy_pct": (
+                self.funding_rate_hourly * 24 * 365 * 100
+                if self.funding_rate_hourly is not None
+                else None
+            ),
         }
 
 

@@ -141,6 +141,22 @@ class HLClient:
         result = await self._info_call(self._info.meta)
         return dict(result)
 
+    async def funding_rate(self, pair: str) -> float | None:
+        """Fetch current hourly funding rate for `pair`. Returns None if not found.
+
+        Uses meta_and_asset_ctxs (one info call) and reads the rate from the
+        asset context whose universe entry matches `pair`. HL publishes funding
+        as an hourly rate; APY = rate * 24 * 365.
+        """
+        result = await self._info_call(self._info.meta_and_asset_ctxs)
+        universe = result[0].get("universe", [])
+        ctxs = result[1] if len(result) > 1 else []
+        for asset, ctx in zip(universe, ctxs, strict=False):
+            if asset.get("name") == pair:
+                rate = ctx.get("funding")
+                return float(rate) if rate is not None else None
+        return None
+
     # ---- write path ----
 
     async def set_leverage(self, coin: str, leverage: int, *, is_cross: bool = False) -> Any:

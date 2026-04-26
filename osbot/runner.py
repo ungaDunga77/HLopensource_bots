@@ -51,6 +51,7 @@ DEFAULT_REPLAN_INTERVAL_S = 300.0
 DEFAULT_RECONCILE_EVERY = 60  # tick-count counts double now (1s ticks)
 DEFAULT_EQUITY_SNAPSHOT_EVERY = 120
 DEFAULT_FILL_RECONCILE_EVERY = 60  # REST safety-net cadence (WS is primary)
+DEFAULT_FUNDING_SAMPLE_EVERY = 60  # ~1 min at 1s ticks
 
 _BACKOFF_BASE_S = 2.0
 _BACKOFF_CAP_S = 60.0
@@ -273,6 +274,12 @@ async def _tick(
             {"tick": tick_idx, "value": risk.last_equity, "mid": mid},
         )
 
+    if tick_idx % state["funding_sample_every"] == 0:
+        rate = await client.funding_rate(pair)
+        if rate is not None:
+            shadow.record_funding_rate(pair, rate)
+            health.funding_rate_hourly = rate
+
 
 @dataclass
 class _RunnerState:
@@ -358,6 +365,7 @@ async def run(
     reconcile_every: int = DEFAULT_RECONCILE_EVERY,
     equity_snapshot_every: int = DEFAULT_EQUITY_SNAPSHOT_EVERY,
     fill_reconcile_every: int = DEFAULT_FILL_RECONCILE_EVERY,
+    funding_sample_every: int = DEFAULT_FUNDING_SAMPLE_EVERY,
     enable_ws: bool = True,
     max_ticks: int | None = None,
 ) -> int:
@@ -411,6 +419,7 @@ async def run(
             "reconcile_every": reconcile_every,
             "equity_snapshot_every": equity_snapshot_every,
             "fill_reconcile_every": fill_reconcile_every,
+            "funding_sample_every": funding_sample_every,
         },
     )
 

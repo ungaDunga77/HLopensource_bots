@@ -32,6 +32,10 @@ class ShadowLogger:
                 "CREATE TABLE IF NOT EXISTS fills ("
                 "ts REAL NOT NULL, tid TEXT NOT NULL UNIQUE, payload TEXT NOT NULL)"
             )
+            conn.execute(
+                "CREATE TABLE IF NOT EXISTS funding_rate ("
+                "ts REAL NOT NULL, pair TEXT NOT NULL, rate REAL NOT NULL)"
+            )
 
     def snapshot(self, kind: str, payload: dict[str, Any]) -> None:
         with self._connect() as conn:
@@ -45,4 +49,11 @@ class ShadowLogger:
             conn.execute(
                 "INSERT OR IGNORE INTO fills (ts, tid, payload) VALUES (?, ?, ?)",
                 (time.time(), tid, json.dumps(payload)),
+            )
+
+    def record_funding_rate(self, pair: str, rate: float) -> None:
+        with self._connect() as conn:
+            conn.execute(
+                "INSERT INTO funding_rate (ts, pair, rate) VALUES (?, ?, ?)",
+                (time.time(), pair, rate),
             )
