@@ -12,6 +12,8 @@ posted rate limits; the throttler is shared with the read path.
 from __future__ import annotations
 
 import asyncio
+import threading
+import time
 from typing import Any
 
 from eth_account.signers.local import LocalAccount
@@ -67,6 +69,30 @@ class HLClient:
                 spot_meta=spot_meta_stub,
                 timeout=timeout,
             )
+        # WS-fed mid cache. Updated from WS callbacks (worker thread); read
+        # from the runner tick (asyncio thread). Lock keeps the dict consistent.
+        self._mid_cache: dict[str, tuple[float, str]] = {}
+        self._mid_cache_lock = threading.Lock()
+
+    # ---- mid cache (thread-safe) ----
+
+    def update_mids(self, mids: dict[str, str]) -> None:
+        """Bulk-update the mid cache. Safe to call from a non-asyncio thread."""
+        ts = time.time()
+        with self._mid_cache_lock:
+            for coin, price in mids.items():
+                self._mid_cache[coin] = (ts, price)
+
+    def cached_mid(self, coin: str, max_age_s: float = 5.0) -> str | None:
+        """Read a mid if cached within `max_age_s`, else None."""
+        with self._mid_cache_lock:
+            entry = self._mid_cache.get(coin)
+        if entry is None:
+            return None
+        ts, price = entry
+        if (time.time() - ts) > max_age_s:
+            return None
+        return price
 
     # ---- read path ----
 

@@ -33,6 +33,7 @@ from typing import Any
 from osbot.config import BaseConfig
 from osbot.connector.errors import AppError, AuthError, ErrorCategory, StructuralError
 from osbot.connector.hl_client import HLClient
+from osbot.connector.ws_subscriber import WsSubscriber
 from osbot.observability import get_logger
 from osbot.observability.health import HealthServer, HealthState
 from osbot.risk.manager import Action, RiskManager
@@ -49,6 +50,7 @@ DEFAULT_TICK_INTERVAL_S = 2.0
 DEFAULT_REPLAN_INTERVAL_S = 300.0
 DEFAULT_RECONCILE_EVERY = 30
 DEFAULT_EQUITY_SNAPSHOT_EVERY = 60
+DEFAULT_FILL_RECONCILE_EVERY = 30  # REST safety-net cadence (WS is primary)
 
 _BACKOFF_BASE_S = 2.0
 _BACKOFF_CAP_S = 60.0
@@ -193,6 +195,7 @@ async def _tick(
     fills_mgr: FillEventsManager,
     exit_mgr: ExitManager,
     health: HealthState,
+    ws: WsSubscriber | None,
     state: dict[str, Any],
     tick_idx: int,
 ) -> None:
@@ -201,14 +204,26 @@ async def _tick(
     shadow = ctx.shadow
     now = time.time()
 
-    new_fills = await fills_mgr.reconcile()
-    for f in new_fills:
-        shadow.record_fill(str(f.get("tid", "")), f)
-    if new_fills:
-        log.info("tick %d: %d new fills", tick_idx, len(new_fills))
+    health.ws_connected = ws is not None and ws.is_connected()
 
-    mids = await client.all_mids()
-    mid_str = mids.get(pair)
+    # Drain WS-buffered fills first (thread-safe, no I/O), then REST safety net
+    # at a slower cadence to catch anything WS missed.
+    ws_fills = fills_mgr.drain_ws_buffer()
+    for f in ws_fills:
+        shadow.record_fill(str(f.get("tid", "")), f)
+    if tick_idx % state["fill_reconcile_every"] == 0:
+        rest_fills = await fills_mgr.reconcile()
+        for f in rest_fills:
+            shadow.record_fill(str(f.get("tid", "")), f)
+        ws_fills = ws_fills + rest_fills
+    if ws_fills:
+        log.info("tick %d: %d new fills", tick_idx, len(ws_fills))
+
+    # Prefer WS-fed cached mid; fall back to REST when stale or missing.
+    mid_str = client.cached_mid(pair)
+    if mid_str is None:
+        mids = await client.all_mids()
+        mid_str = mids.get(pair)
     if not mid_str:
         log.warning("tick %d: no mid for %s", tick_idx, pair)
         return
@@ -270,6 +285,7 @@ class _RunnerState:
     exit_mgr: ExitManager
     health: HealthState
     server: HealthServer
+    ws: WsSubscriber | None
     tick_state: dict[str, Any]
 
 
@@ -292,6 +308,7 @@ async def _run_loop(rs: _RunnerState, tick_interval_s: float, max_ticks: int | N
                 fills_mgr=rs.fills_mgr,
                 exit_mgr=rs.exit_mgr,
                 health=health,
+                ws=rs.ws,
                 state=rs.tick_state,
                 tick_idx=tick_idx,
             )
@@ -340,6 +357,8 @@ async def run(
     replan_interval_s: float = DEFAULT_REPLAN_INTERVAL_S,
     reconcile_every: int = DEFAULT_RECONCILE_EVERY,
     equity_snapshot_every: int = DEFAULT_EQUITY_SNAPSHOT_EVERY,
+    fill_reconcile_every: int = DEFAULT_FILL_RECONCILE_EVERY,
+    enable_ws: bool = True,
     max_ticks: int | None = None,
 ) -> int:
     ctx = await run_startup(cfg)
@@ -367,6 +386,13 @@ async def run(
     await server.start()
     _install_signal_handlers(health)
 
+    ws: WsSubscriber | None = None
+    if enable_ws:
+        ws = WsSubscriber(mode=cfg.mode, account_address=cfg.account_address)
+        ws.subscribe_all_mids(ctx.client.update_mids)
+        ws.subscribe_user_fills(lambda f: (fills_mgr.ingest(f), None)[1])
+        log.info("runner: WS subscriber started (allMids + userFills)")
+
     rs = _RunnerState(
         ctx=ctx,
         cfg=cfg,
@@ -377,11 +403,13 @@ async def run(
         exit_mgr=exit_mgr,
         health=health,
         server=server,
+        ws=ws,
         tick_state={
             "tracked_cloids": [],
             "replan_interval_s": replan_interval_s,
             "reconcile_every": reconcile_every,
             "equity_snapshot_every": equity_snapshot_every,
+            "fill_reconcile_every": fill_reconcile_every,
         },
     )
 
@@ -390,6 +418,8 @@ async def run(
         exit_code = await _run_loop(rs, tick_interval_s, max_ticks)
     finally:
         await _graceful_shutdown(ctx.client, cfg.strategy.pair, rs.tick_state["tracked_cloids"])
+        if ws is not None:
+            ws.stop()
         await server.stop()
         ctx.shadow.snapshot(
             "runner_exit",
