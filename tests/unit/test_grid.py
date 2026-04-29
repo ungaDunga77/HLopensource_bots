@@ -152,6 +152,90 @@ def test_round_size_basic() -> None:
     assert _round_size(15.0, 60_000.0, 5) == 0.00025
 
 
+def test_grid_skew_disabled_by_default_keeps_symmetry_with_position() -> None:
+    """gamma=0 (default) ⇒ grid is symmetric around mid regardless of position."""
+    g = GridStrategy(_cfg(), sz_decimals=5)
+    m = MarketState()
+    # Inject vol so sigma_bps > 0 — would otherwise zero out skew_frac too.
+    for i in range(30):
+        mid_i = 60_000.0 * (1 + 0.001 * ((i % 2) * 2 - 1))
+        m.sample(ts=float(i * 60), mid=mid_i)
+    plan = g.plan(
+        now=30 * 60,
+        mid=60_000.0,
+        market=m,
+        balance_usd=10_000.0,
+        open_grid_cloids=[],
+        position_signed_szi=0.5,  # large long; would skew if gamma>0
+    )
+    buys = sorted([s.price for s in plan.submits if s.side == "buy"], reverse=True)
+    sells = sorted([s.price for s in plan.submits if s.side == "sell"])
+    # Symmetric: each sell-mid distance == matching buy-mid distance.
+    assert math.isclose(sells[0] - 60_000.0, 60_000.0 - buys[0], rel_tol=1e-4)
+
+
+def test_grid_skew_long_inventory_shifts_grid_down() -> None:
+    """gamma>0 + long position ⇒ reservation price < mid, both sides shift down."""
+    g = GridStrategy(
+        _cfg(inventory_skew_gamma=10_000.0, inventory_skew_horizon_s=300.0),
+        sz_decimals=5,
+    )
+    m = MarketState()
+    for i in range(30):
+        mid_i = 60_000.0 * (1 + 0.001 * ((i % 2) * 2 - 1))
+        m.sample(ts=float(i * 60), mid=mid_i)
+    plan_flat = g.plan(
+        now=30 * 60, mid=60_000.0, market=m, balance_usd=10_000.0,
+        open_grid_cloids=[], position_signed_szi=0.0,
+    )
+    # New instance to reset replan state.
+    g2 = GridStrategy(
+        _cfg(inventory_skew_gamma=10_000.0, inventory_skew_horizon_s=300.0),
+        sz_decimals=5,
+    )
+    plan_long = g2.plan(
+        now=30 * 60, mid=60_000.0, market=m, balance_usd=10_000.0,
+        open_grid_cloids=[], position_signed_szi=0.5,
+    )
+    # Long inventory ⇒ all prices shift downward (sells closer to mid, buys further).
+    sells_flat = sorted([s.price for s in plan_flat.submits if s.side == "sell"])
+    sells_long = sorted([s.price for s in plan_long.submits if s.side == "sell"])
+    assert sells_long[0] < sells_flat[0]
+    buys_flat = sorted([s.price for s in plan_flat.submits if s.side == "buy"], reverse=True)
+    buys_long = sorted([s.price for s in plan_long.submits if s.side == "buy"], reverse=True)
+    assert buys_long[0] < buys_flat[0]
+
+
+def test_grid_skew_short_inventory_shifts_grid_up() -> None:
+    """gamma>0 + short position ⇒ reservation price > mid, both sides shift up."""
+    g_flat = GridStrategy(
+        _cfg(inventory_skew_gamma=10_000.0, inventory_skew_horizon_s=300.0),
+        sz_decimals=5,
+    )
+    g_short = GridStrategy(
+        _cfg(inventory_skew_gamma=10_000.0, inventory_skew_horizon_s=300.0),
+        sz_decimals=5,
+    )
+    m = MarketState()
+    for i in range(30):
+        mid_i = 60_000.0 * (1 + 0.001 * ((i % 2) * 2 - 1))
+        m.sample(ts=float(i * 60), mid=mid_i)
+    plan_flat = g_flat.plan(
+        now=30 * 60, mid=60_000.0, market=m, balance_usd=10_000.0,
+        open_grid_cloids=[], position_signed_szi=0.0,
+    )
+    plan_short = g_short.plan(
+        now=30 * 60, mid=60_000.0, market=m, balance_usd=10_000.0,
+        open_grid_cloids=[], position_signed_szi=-0.5,
+    )
+    sells_flat = sorted([s.price for s in plan_flat.submits if s.side == "sell"])
+    sells_short = sorted([s.price for s in plan_short.submits if s.side == "sell"])
+    assert sells_short[0] > sells_flat[0]
+    buys_flat = sorted([s.price for s in plan_flat.submits if s.side == "buy"], reverse=True)
+    buys_short = sorted([s.price for s in plan_short.submits if s.side == "buy"], reverse=True)
+    assert buys_short[0] > buys_flat[0]
+
+
 def test_tp_fires_long() -> None:
     tb = TripleBarrier(sl_pct=0.03, tp_pct=0.005, ttl_s=86400)
     pos = PositionExitState(entry_price=60_000.0, size=0.001, side="long", opened_ts=0.0)

@@ -177,6 +177,8 @@ class GridStrategy:
         self.wallet_exposure_limit = cfg.strategy.wallet_exposure_limit
         self.range_bps_min = float(cfg.strategy.range_bps_min)
         self.min_notional_usd = cfg.risk.min_notional_usd
+        self.inventory_skew_gamma = float(cfg.strategy.inventory_skew_gamma)
+        self.inventory_skew_horizon_s = float(cfg.strategy.inventory_skew_horizon_s)
         self._last_plan_ts: float = 0.0
         self._last_plan_was_paused: bool = False
 
@@ -199,10 +201,18 @@ class GridStrategy:
         market: MarketState,
         balance_usd: float,
         open_grid_cloids: list[str],
+        position_signed_szi: float = 0.0,
     ) -> GridPlan:
         """Build the next GridPlan. Always cancels existing OPEN_GRID cloids.
 
         If trend filter trips, returns cancels-only (pause adds).
+
+        When `inventory_skew_gamma > 0` the grid is centered on an
+        Avellaneda-Stoikov reservation price `r = mid * (1 - q*g*s^2*T)` rather
+        than mid, where `q = position_notional / balance` is signed normalized
+        inventory, `g` is `inventory_skew_gamma`, `s` is sigma_frac, and `T` is
+        the horizon in minutes. Default g=0 keeps the grid symmetric around mid
+        (legacy behavior). See todo section 10.
         """
         sigma_bps = market.sigma_bps(now)
         slope_bps = market.ema_slope_bps(now)
@@ -240,10 +250,19 @@ class GridStrategy:
             log.error("grid: level size rounded to 0; skipping submits")
             return plan
 
+        # Avellaneda-Stoikov reservation-price skew. Defaults to mid when gamma=0.
+        skew_frac = 0.0
+        if self.inventory_skew_gamma > 0.0 and balance_usd > 0.0:
+            q = (position_signed_szi * mid) / max(balance_usd, 1.0)
+            sigma_frac = sigma_bps / 10_000.0
+            t_min = self.inventory_skew_horizon_s / 60.0
+            skew_frac = q * self.inventory_skew_gamma * (sigma_frac * sigma_frac) * t_min
+        reservation_price = mid * (1.0 - skew_frac)
+
         for i in range(1, self.grid_levels + 1):
             offset = (spacing_bps * i) / 10_000.0
-            buy_px = _round_price(mid * (1 - offset), self.sz_decimals)
-            sell_px = _round_price(mid * (1 + offset), self.sz_decimals)
+            buy_px = _round_price(reservation_price * (1 - offset), self.sz_decimals)
+            sell_px = _round_price(reservation_price * (1 + offset), self.sz_decimals)
             buy_cloid = OrderTag(
                 strategy_id=self.strategy_id, intent=OrderIntent.OPEN_GRID, level=i
             ).to_cloid()
@@ -273,13 +292,14 @@ class GridStrategy:
 
         log.info(
             "grid plan: sigma=%.1fbps slope=%.1fbps range=%.1fbps spacing=%.1fbps"
-            " size=%s bumped=%s submits=%d cancels=%d",
+            " size=%s bumped=%s skew=%.2fbps submits=%d cancels=%d",
             sigma_bps,
             slope_bps,
             range_bps,
             spacing_bps,
             level_size,
             bumped,
+            skew_frac * 10_000.0,
             len(plan.submits),
             len(plan.cancels),
         )

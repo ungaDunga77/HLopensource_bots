@@ -233,6 +233,19 @@ def _strategy_id_for(pair: str) -> int:
     return h or 0xCAFE
 
 
+def _extract_signed_szi(user_state: dict[str, Any], pair: str) -> float:
+    """Signed position size for `pair` from HL user_state, or 0.0 if flat/missing."""
+    for p in user_state.get("assetPositions") or []:
+        pos = p.get("position") or {}
+        if pos.get("coin") != pair:
+            continue
+        try:
+            return float(pos.get("szi", "0"))
+        except (TypeError, ValueError):
+            return 0.0
+    return 0.0
+
+
 async def _tick_pair(
     pr: _PairRuntime,
     *,
@@ -267,12 +280,14 @@ async def _tick_pair(
         return
 
     if pr.grid.should_replan(now, state["replan_interval_s"], have_grid=bool(pr.tracked_cloids)):
+        position_signed_szi = _extract_signed_szi(user_state, pr.pair)
         plan = pr.grid.plan(
             now=now,
             mid=mid,
             market=pr.market,
             balance_usd=risk.last_equity,
             open_grid_cloids=pr.tracked_cloids,
+            position_signed_szi=position_signed_szi,
         )
         shadow.snapshot(
             "grid_plan",

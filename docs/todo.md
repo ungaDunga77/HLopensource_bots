@@ -15,14 +15,30 @@ Ranked by recommended order. Items are independent unless noted.
 **From:** v1 design discussion + custom-bot-design-notes.md:252  
 **Why:** HL has `PAXG` (gold) and HIP-3 equity perps (`SPX`, mainnet adds NVDA/TSLA/AAPL/MSFT/GOOGL/COIN/MSTR/etc.). Lessons flag HIP-3 as a confirmed gap with first-mover advantage — "lower-sophistication flow and weaker MMs". DO NOT MIX with crypto in v1: stocks have weekend gaps, market hours, and different vol regimes — would either always-pick-crypto or get stuck Fri-close into Mon-gap.  
 **What:** Second forager *instance* alongside v1 with its own params: market-hours awareness (pause grid when market closed), gap-risk-aware position sizing, separate candidate universe `[PAXG, SPX, ...]`. Per-instance cloid prefix (item 4 dependency) attributes fills cleanly across both. Most testnet HIP-3 perps live mainnet-only — universe will need verification.  
+**Refinements distilled from v1 disabled run (2026-04-26 → 2026-04-29) vs Passivbot Trial #2 (lessons.md:205):** v1 underperformed; comparison shows three deltas worth correcting before re-enabling any forager:
+  1. v1 used flat `min_volume_usd_24h` threshold; Passivbot used a 365-span volume EMA (smoothed, gives ranker a continuous signal not a hard cutoff). Switch to volume EMA.
+  2. v1 used `rotate_every_s=1800` (30min); Passivbot used 5min (300s). Faster cadence reaches the right pair sooner; Passivbot pairs this with 60s entry-order retire so old orders don't linger after rotation. Adopt 300s.
+  3. v1 `log_range_window_min=16` matches Passivbot's `filter_log_range_ema_span=16` — keep as-is.
 **Size:** Medium — ~150 LOC building on v1 infrastructure.  
-**Blocked by:** v1 working in steady state for at least 24h.
+**Blocked by:** Item 10 (Avellaneda skew) shipping and demonstrating measurable PnL improvement on single-pair BTC. Forager interactions with skew need its baseline first.
 
 ### 5. TrendRegularityFilter
 **From:** freqtrade-titouan  
 **Why:** Replaces our slope-bps gate with OLS + R² regime classifier. R² says "is this trend a *line* or just noise that *looks* trendy?" — fewer false-positive trend pauses during choppy markets. Now that dual-EMA slope is in, marginal gain is smaller but still real.  
 **What:** New `strategy/regime.py` module. Window of N samples → OLS fit → return (slope_bps_per_hour, r2). Strategy uses both: pause only if `|slope| > threshold AND r2 > 0.6`.  
 **Size:** ~80 LOC + tests.
+
+### 10. Avellaneda-Stoikov inventory skew
+**From:** `evaluations/avellaneda-mm-freqtrade/evaluation.md` (B3, lines 84, 94) — "the *entire point* of A-S inventory management" is disabled in the OSS bot via hardcoded `q_inventory_exposure = 0.0` at avellaneda.py lines 473/494/515. Eval recommends: "When we implement A-S ourselves, actually compute `q`: normalized inventory (position notional / capital, signed), and feed it to `r = s - q·γ·σ²·T`. This is 3 lines to uncomment."
+**Why:** Forager v1 disabled run (2026-04-26 → 2026-04-29) and the BTC-only baseline both showed the same loss mechanism: persistent trends build asymmetric inventory, and the slope-bps gate is *reactive* (fires only after inventory is on the books). A-S inventory skew is *inventory-aware* — when q grows positive (long), it shifts the entire grid mid downward so sells become more aggressive (closer to mid) and buys less aggressive (further from mid), naturally rebalancing toward flat. Math is textbook; only the OSS implementation we tested left it disabled.
+**What:**
+1. New config: `strategy.inventory_skew_gamma: float = 0.0` (default disables) and `strategy.inventory_skew_horizon_s: float = 300.0` (T parameter, default 5min).
+2. `runner._do_pair_tick` extracts signed `szi` from `user_state["assetPositions"]` and passes to `grid.plan(...)`.
+3. `GridStrategy.plan()` computes `q = (szi · mid) / max(balance, 1)`, `σ_frac = sigma_bps / 10_000`, `T_min = horizon_s / 60`, `skew_frac = q · γ · σ_frac² · T_min`, then builds the grid around `reservation_price = mid · (1 - skew_frac)` instead of `mid`.
+4. Log skew_frac alongside sigma/slope each replan for visibility.
+5. Unit tests: γ=0 → symmetric grid regardless of position; γ>0 + long → reservation < mid; γ>0 + short → reservation > mid.
+**Size:** ~30 LOC + 3 tests.
+**Tuning:** γ=0 ships disabled. Recommended starting value γ=1000 (gives ~0.5bps skew per 10% inventory at σ=3bps, T=5min — small enough to A/B safely).
 
 ### 6. DSL trailing stop
 **From:** senpi-skills  

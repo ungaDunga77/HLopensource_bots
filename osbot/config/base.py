@@ -18,6 +18,10 @@ class StrategyConfig(BaseModel):
     sl_pct: float = Field(default=0.015, gt=0, le=0.5)
     exit_ttl_s: int = Field(default=86_400, ge=60)
     sl_consecutive_breaches: int = Field(default=2, ge=1, le=10)
+    # Avellaneda-Stoikov inventory skew (todo §10). Default 0 disables — grid stays
+    # symmetric around mid. Source: evaluations/avellaneda-mm-freqtrade B3.
+    inventory_skew_gamma: float = Field(default=0.0, ge=0.0)
+    inventory_skew_horizon_s: float = Field(default=300.0, gt=0.0)
 
 
 class RiskConfig(BaseModel):
