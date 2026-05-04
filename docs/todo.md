@@ -28,7 +28,9 @@ Ranked by recommended order. Items are independent unless noted.
 **What:** New `strategy/regime.py` module. Window of N samples → OLS fit → return (slope_bps_per_hour, r2). Strategy uses both: pause only if `|slope| > threshold AND r2 > 0.6`.  
 **Size:** ~80 LOC + tests.
 
-### 10. Avellaneda-Stoikov inventory skew
+### 10. Avellaneda-Stoikov inventory skew — **SHIPPED + 111h soak complete**
+**Status (2026-05-04):** γ=1000 default shipped at `568bee0`. 111h live soak complete: net +0.12% in a mostly-trending regime. Skew engaged correctly throughout (max −18.84bps observed, no instability). Annualized linear extrapolation +9.5%/yr (optimistic) → +3-5%/yr after mainnet haircuts. **Decision: keep γ=1000, do not A/B vs 500/2000 until a calm-market window can be isolated.** See lessons.md "Avellaneda γ=1000 Soak" section.
+
 **From:** `evaluations/avellaneda-mm-freqtrade/evaluation.md` (B3, lines 84, 94) — "the *entire point* of A-S inventory management" is disabled in the OSS bot via hardcoded `q_inventory_exposure = 0.0` at avellaneda.py lines 473/494/515. Eval recommends: "When we implement A-S ourselves, actually compute `q`: normalized inventory (position notional / capital, signed), and feed it to `r = s - q·γ·σ²·T`. This is 3 lines to uncomment."
 **Why:** Forager v1 disabled run (2026-04-26 → 2026-04-29) and the BTC-only baseline both showed the same loss mechanism: persistent trends build asymmetric inventory, and the slope-bps gate is *reactive* (fires only after inventory is on the books). A-S inventory skew is *inventory-aware* — when q grows positive (long), it shifts the entire grid mid downward so sells become more aggressive (closer to mid) and buys less aggressive (further from mid), naturally rebalancing toward flat. Math is textbook; only the OSS implementation we tested left it disabled.
 **What:**
@@ -83,3 +85,5 @@ Ranked by recommended order. Items are independent unless noted.
 - WEL 0.20 → 0.30 (`dba3543`, 2026-04-26)
 - Per-pair cloid prefix (shipped with forager v1 C3, was original todo.md §4)
 - Forager v1 — crypto-major rotation (`0250270` C1 + `d34f9fd` C2 + `9d050b1` C3, 2026-04-26)
+- Avellaneda-Stoikov inventory skew (`568bee0`, 2026-04-29) — γ=1000 default, soak complete 2026-05-04
+- Avellaneda γ=1000 111h live soak (2026-04-29 → 2026-05-04): net +0.12%, behaviors verified, default kept
