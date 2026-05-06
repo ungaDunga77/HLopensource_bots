@@ -2,7 +2,39 @@
 
 Ranked by recommended order. Items are independent unless noted.
 
-## Next up
+## Strategic pivot (2026-05-06)
+
+**The 159h Avellaneda γ=1000 soak settled at −1.18% net.** Annualized linear extrapolation is now negative (~−6.5%/yr); the strategy is capacity-bound, skill-bound, and structurally vulnerable to sustained trends (6 SLs, all stale shorts in uptrends). Tuning γ further would be measuring noise in a hostile regime. **The next investment should be in a different strategy class, not in tuning this one.**
+
+Three candidate classes ranked by effort × expected edge:
+1. **Funding-rate harvester (todo §11 below).** Simplest of the three; HL funding APY readings during the soak ranged 100–300% on BTC. Different mechanics (no MM smarts; collect funding while delta-neutral). Realistic +20–50%/year if funding stays elevated; risk is funding flipping negative.
+2. **HIP-3 equity perps grid MM (todo §12 below).** Reuse the existing osbot infrastructure (vol-adaptive grid + trend filter + skew + reconnect/retry), point it at NVDA/TSLA/AAPL/COIN/etc. perps. The "weaker MMs / lower-sophistication flow" thesis from lessons.md applies. Needs market-hours logic, weekend gap handling, universe verification (most testnet HIP-3 perps live mainnet-only).
+3. **XEMM cross-exchange MM (todo §9, already on backlog).** Highest skill ceiling, two-venue infrastructure, real engineering cost. Defer until 1 or 2 has a baseline.
+
+The current osbot — vol-adaptive grid + Avellaneda + trend filter — stays as the *defensive baseline*. Don't tune; reuse the infrastructure layer (M0–M3 work, WS reconnect, retry backoff, ShadowLogger, throttler, pre-trade checks) for whichever strategy class comes next. Current bot can keep running as a known-floor reference if desired, or stop and free the testnet account for the next strategy.
+
+### 11. Funding-rate harvester (NEW, top priority)
+**From:** osbot soak observation — HL funding APY 100–300% during 159h window, far above realized PnL of grid MM.
+**Why:** Funding-rate harvesting is a textbook strategy for perps with positive sustained funding. Strategy: hold spot/equivalent or stay flat, short the perp when funding > threshold, collect 8h funding payments, hedge price risk by sizing the perp short against a delta-neutral basket or maintaining tight delta limits. No MM smarts needed; no edge in tight spreads. Edge is in *persistence* of funding skew.
+**What:** New strategy module (~200 LOC) replacing GridStrategy in the runner. State machine: monitor funding (already on /health), enter short when funding_rate_hourly > entry threshold (e.g. 0.0001/hour = 0.876% APY) and stay until funding < exit threshold or stop-loss on price. Reuse existing TripleBarrier for SL/TP, but the SL is on accumulated price loss, not per-trade.
+**Open questions:**
+1. Whether to hedge with spot HYPE/BTC or stay net-short and accept directional risk (cleaner but riskier).
+2. Position sizing: full account, or fractional? Funding harvest = leverage amplifier.
+3. Funding payment timing: every 1h on HL; need to verify settlement and accounting.
+4. Mainnet vs testnet funding pattern — does mainnet show similar persistent skew? Testnet APY may be artificially elevated.
+**Size:** Medium — ~200 LOC + tests. Reuses existing connector, throttler, ShadowLogger, runner shell.
+**Blocked by:** Decision on whether to keep the grid bot running in parallel or stop. Funding harvester would replace the active strategy in `secrets/roundtrip.yaml`.
+
+### 12. HIP-3 equity perps grid MM (NEW)
+**From:** lessons.md HIP-3 first-mover gap + 159h soak verdict that grid mechanics are sound but BTC market is too efficient.
+**Why:** Same vol-adaptive grid + Avellaneda + trend filter mechanics, but in markets where the bot competes against weaker MMs and slower flow. Stocks have natural mean-reversion windows (open-close) and predictable vol regimes (intraday vol > overnight vol). The strategy that loses on BTC (where every MM is sophisticated) may win on TSLA-perp.
+**What:**
+1. Universe verification: query mainnet `meta_and_asset_ctxs` for HIP-3 perps available on testnet vs mainnet only. Likely subset.
+2. Market-hours logic: pause grid when underlying equity market is closed (don't quote into a void).
+3. Weekend gap handling: flatten Friday close, restart Monday open.
+4. Per-asset σ calibration — equity perps may have very different vol characteristics than BTC.
+**Size:** Medium — ~150 LOC building on existing forager v1 multi-pair infrastructure.
+**Blocked by:** Funding harvester baseline (decide if HIP-3 grid PnL beats funding harvest before committing engineering).
 
 ### 1. Enable + observe forager v1 on testnet
 **From:** v1 shipped 2026-04-26 (`9d050b1`), disabled by default  
