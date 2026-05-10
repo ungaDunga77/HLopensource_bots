@@ -29,3 +29,7 @@ evaluations/passivbot/shadow/*.db-*
 evaluations/freqtrade-titouan/testnet-config-live.json
 evaluations/freqtrade-titouan/user_data/
 evaluations/freqtrade-titouan/database/
+
+# Market survey runtime artifacts — large live SQLite DBs
+evaluations/_market_survey/*.db
+evaluations/_market_survey/*.db-*
