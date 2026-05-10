@@ -5,9 +5,24 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field, SecretStr
 
 
+class PairOverrides(BaseModel):
+    """Per-pair strategy parameter overrides. Fields left None use the base config."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    leverage: int | None = Field(default=None, ge=1, le=50)
+    grid_levels: int | None = Field(default=None, ge=1, le=50)
+    range_bps_min: int | None = Field(default=None, ge=1)
+    tp_pct: float | None = Field(default=None, gt=0, le=0.1)
+    sl_pct: float | None = Field(default=None, gt=0, le=0.5)
+    exit_ttl_s: int | None = Field(default=None, ge=60)
+    inventory_skew_gamma: float | None = Field(default=None, ge=0.0)
+
+
 class StrategyConfig(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
 
+    dex: str | None = None
     pair: str = "BTC"
     leverage: int = Field(default=3, ge=1, le=50)
     grid_levels: int = Field(default=7, ge=1, le=50)
@@ -22,6 +37,7 @@ class StrategyConfig(BaseModel):
     # symmetric around mid. Source: evaluations/avellaneda-mm-freqtrade B3.
     inventory_skew_gamma: float = Field(default=0.0, ge=0.0)
     inventory_skew_horizon_s: float = Field(default=300.0, gt=0.0)
+    pair_overrides: dict[str, PairOverrides] = Field(default_factory=dict)
 
 
 class RiskConfig(BaseModel):

@@ -132,6 +132,7 @@ async def run_startup(cfg: BaseConfig) -> StartupContext:
 
     # Step 7: explicit set_leverage.
     pair = cfg.strategy.pair
+    dex = cfg.strategy.dex
     leverage = cfg.strategy.leverage
     try:
         await client.set_leverage(pair, leverage, is_cross=False)
@@ -140,7 +141,7 @@ async def run_startup(cfg: BaseConfig) -> StartupContext:
     log.info("startup step 7: leverage set pair=%s leverage=%dx isolated", pair, leverage)
 
     # Step 8: meta + szDecimals.
-    meta = await client.meta()
+    meta = await client.meta(dex=dex)
     sz_decimals = _find_sz_decimals(meta, pair)
     log.info("startup step 8: pair=%s szDecimals=%d", pair, sz_decimals)
 

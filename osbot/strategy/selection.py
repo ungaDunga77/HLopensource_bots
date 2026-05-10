@@ -26,6 +26,7 @@ from collections import deque
 from dataclasses import dataclass, field
 from typing import Any
 
+from osbot.config.base import PairOverrides
 from osbot.connector.errors import AppError, StructuralError
 from osbot.connector.hl_client import HLClient
 from osbot.observability import get_logger
@@ -138,6 +139,9 @@ async def prepare_forager_pairs(
     client: HLClient,
     candidates: list[str],
     leverage: int,
+    *,
+    dex: str | None = None,
+    pair_overrides: dict[str, PairOverrides] | None = None,
 ) -> dict[str, int]:
     """Validate candidate pairs against HL meta + set isolated leverage on each.
 
@@ -146,7 +150,7 @@ async def prepare_forager_pairs(
     than raising — the forager is resilient to partial-universe deployments
     (e.g. some HL pairs are mainnet-only).
     """
-    meta = await client.meta()
+    meta = await client.meta(dex=dex)
     universe = {u["name"]: int(u.get("szDecimals", 0)) for u in meta.get("universe", [])}
     valid: dict[str, int] = {}
     for pair in candidates:
@@ -156,12 +160,16 @@ async def prepare_forager_pairs(
         valid[pair] = universe[pair]
     if not valid:
         raise StructuralError("forager: no candidate pairs found on HL")
+    ovr = pair_overrides or {}
     for pair in valid:
+        pair_lev = leverage
+        if pair in ovr and ovr[pair].leverage is not None:
+            pair_lev = ovr[pair].leverage
         try:
-            await client.set_leverage(pair, leverage, is_cross=False)
+            await client.set_leverage(pair, pair_lev, is_cross=False)
         except AppError as e:
             raise StructuralError(
                 f"forager: set_leverage failed for {pair}: {e.message}", cause=e
             ) from e
-    log.info("forager: prepared %d pairs (leverage=%dx isolated)", len(valid), leverage)
+    log.info("forager: prepared %d pairs (base leverage=%dx isolated)", len(valid), leverage)
     return valid

@@ -212,13 +212,14 @@ class _PairRuntime:
 def _build_pair_runtime(
     cfg: BaseConfig, ctx: StartupContext, pair: str, sz_decimals: int, strategy_id: int
 ) -> _PairRuntime:
+    ovr = cfg.strategy.pair_overrides.get(pair)
     triple_barrier = TripleBarrier(
-        sl_pct=cfg.strategy.sl_pct,
-        tp_pct=cfg.strategy.tp_pct,
-        ttl_s=float(cfg.strategy.exit_ttl_s),
+        sl_pct=(ovr.sl_pct if ovr and ovr.sl_pct is not None else cfg.strategy.sl_pct),
+        tp_pct=(ovr.tp_pct if ovr and ovr.tp_pct is not None else cfg.strategy.tp_pct),
+        ttl_s=float(ovr.exit_ttl_s if ovr and ovr.exit_ttl_s is not None else cfg.strategy.exit_ttl_s),
         consecutive_breaches_required=cfg.strategy.sl_consecutive_breaches,
     )
-    grid = GridStrategy(cfg, sz_decimals, strategy_id=strategy_id)
+    grid = GridStrategy(cfg, sz_decimals, strategy_id=strategy_id, overrides=ovr)
     exit_mgr = ExitManager(client=ctx.client, pair=pair, triple_barrier=triple_barrier)
     return _PairRuntime(
         pair=pair, sz_decimals=sz_decimals, market=MarketState(), grid=grid, exit_mgr=exit_mgr
@@ -255,6 +256,7 @@ async def _tick_pair(
     state: dict[str, Any],
     tick_idx: int,
     now: float,
+    n_active_pairs: int = 1,
 ) -> None:
     """Per-pair work: mid sample, exit evaluation, replan/submit, reconcile."""
     client = ctx.client
@@ -262,7 +264,8 @@ async def _tick_pair(
 
     mid_str = client.cached_mid(pr.pair)
     if mid_str is None:
-        mids = await client.all_mids()
+        dex = ctx.cfg.strategy.dex
+        mids = await client.all_mids(dex=dex)
         mid_str = mids.get(pr.pair)
     if not mid_str:
         log.warning("tick %d: no mid for %s", tick_idx, pr.pair)
@@ -288,6 +291,7 @@ async def _tick_pair(
             balance_usd=risk.last_equity,
             open_grid_cloids=pr.tracked_cloids,
             position_signed_szi=position_signed_szi,
+            n_active_pairs=n_active_pairs,
         )
         shadow.snapshot(
             "grid_plan",
@@ -314,12 +318,15 @@ async def _rotate_forager(
     selector: ForagerSelector,
     pair_meta: dict[str, int],
     now: float,
-) -> None:
-    """Run one forager rotation: drain pairs no longer in top_n, add new ones."""
+) -> bool:
+    """Run one forager rotation: drain pairs no longer in top_n, add new ones.
+
+    Returns True if rotation produced a result, False if rank was empty (warm-up).
+    """
     desired = set(selector.top_n(cfg.forager.top_n))
     if not desired:
         log.warning("forager: rank produced empty top_n; skipping rotation")
-        return
+        return False
     active = {p for p, pr in pairs.items() if not pr.draining}
     to_add = desired - active
     to_drop = active - desired
@@ -365,6 +372,7 @@ async def _rotate_forager(
         sorted(p for p, pr in pairs.items() if pr.draining),
         now,
     )
+    return True
 
 
 async def _tick(  # noqa: PLR0912
@@ -407,28 +415,32 @@ async def _tick(  # noqa: PLR0912
     if selector is not None and cfg.forager.enabled:
         # Pull all_mids once per tick when selector is active. For non-active
         # candidates we don't have cached_mid (no per-pair caching beyond WS).
+        dex = cfg.strategy.dex
         try:
-            all_mids = await client.all_mids()
+            all_mids = await client.all_mids(dex=dex)
             selector.update_mids(now, all_mids)  # type: ignore[arg-type]
         except AppError as e:
             log.warning("forager: all_mids failed: %s (selector starved this tick)", e.message)
         if tick_idx % state["funding_sample_every"] == 0:
             try:
-                meta_ctxs = await client.meta_and_asset_ctxs()
+                meta_ctxs = await client.meta_and_asset_ctxs(dex=dex)
                 selector.update_asset_ctxs(meta_ctxs[0].get("universe", []), meta_ctxs[1])
             except AppError as e:
                 log.warning("forager: meta_and_asset_ctxs failed: %s", e.message)
         last_rot = state.get("last_rotate_ts", 0.0)
         if (now - last_rot) >= cfg.forager.rotate_every_s:
-            state["last_rotate_ts"] = now
-            await _rotate_forager(
+            rotated = await _rotate_forager(
                 ctx=ctx, cfg=cfg, pairs=pairs, selector=selector,
                 pair_meta=pair_meta, now=now,
             )
+            if rotated:
+                state["last_rotate_ts"] = now
 
+    n_active = sum(1 for pr in pairs.values() if not pr.draining)
     for pr in list(pairs.values()):
         await _tick_pair(
-            pr, ctx=ctx, risk=risk, health=health, state=state, tick_idx=tick_idx, now=now
+            pr, ctx=ctx, risk=risk, health=health, state=state, tick_idx=tick_idx, now=now,
+            n_active_pairs=max(n_active, 1),
         )
 
     health.open_order_count = sum(len(pr.tracked_cloids) for pr in pairs.values())
@@ -453,12 +465,13 @@ async def _tick(  # noqa: PLR0912
         )
 
     if tick_idx % state["funding_sample_every"] == 0 and pairs:
+        dex = cfg.strategy.dex
         for pair_name in pairs:
-            rate = await client.funding_rate(pair_name)
+            rate = await client.funding_rate(pair_name, dex=dex)
             if rate is not None:
                 shadow.record_funding_rate(pair_name, rate)
         primary = cfg.strategy.pair if cfg.strategy.pair in pairs else next(iter(pairs))
-        primary_rate = await client.funding_rate(primary)
+        primary_rate = await client.funding_rate(primary, dex=dex)
         if primary_rate is not None:
             health.funding_rate_hourly = primary_rate
 
@@ -570,7 +583,9 @@ async def run(
 
     if cfg.forager.enabled:
         pair_meta = await prepare_forager_pairs(
-            ctx.client, cfg.forager.candidate_pairs, cfg.strategy.leverage
+            ctx.client, cfg.forager.candidate_pairs, cfg.strategy.leverage,
+            dex=cfg.strategy.dex,
+            pair_overrides=cfg.strategy.pair_overrides,
         )
         selector = ForagerSelector(
             candidates=list(pair_meta.keys()),
@@ -591,7 +606,7 @@ async def run(
     ws: WsSubscriber | None = None
     if enable_ws:
         ws = WsSubscriber(mode=cfg.mode, account_address=cfg.account_address)
-        ws.subscribe_all_mids(ctx.client.update_mids)
+        ws.subscribe_all_mids(ctx.client.update_mids, dex=cfg.strategy.dex)
         ws.subscribe_user_fills(lambda f: (fills_mgr.ingest(f), None)[1])
         ws.start_watchdog()
         log.info("runner: WS subscriber started (allMids + userFills, with reconnect)")

@@ -16,6 +16,7 @@ import threading
 import time
 from typing import Any
 
+import requests as _requests
 from eth_account.signers.local import LocalAccount
 from hyperliquid.exchange import Exchange
 from hyperliquid.info import Info
@@ -69,6 +70,8 @@ class HLClient:
                 spot_meta=spot_meta_stub,
                 timeout=timeout,
             )
+        self._info_url = base_url + "/info"
+        self._timeout = timeout
         # WS-fed mid cache. Updated from WS callbacks (worker thread); read
         # from the runner tick (asyncio thread). Lock keeps the dict consistent.
         self._mid_cache: dict[str, tuple[float, str]] = {}
@@ -93,6 +96,13 @@ class HLClient:
         if (time.time() - ts) > max_age_s:
             return None
         return price
+
+    # ---- raw info POST (bypasses SDK for dex-aware endpoints) ----
+
+    def _raw_info_post(self, payload: dict[str, Any]) -> Any:
+        r = _requests.post(self._info_url, json=payload, timeout=self._timeout)
+        r.raise_for_status()
+        return r.json()
 
     # ---- read path ----
 
@@ -129,33 +139,47 @@ class HLClient:
         result = await self._info_call(self._info.open_orders, self.account_address)
         return list(result)
 
-    async def all_mids(self) -> dict[str, str]:
-        result = await self._info_call(self._info.all_mids)
+    async def all_mids(self, *, dex: str | None = None) -> dict[str, str]:
+        if dex is not None:
+            result = await self._info_call(self._raw_info_post, {"type": "allMids", "dex": dex})
+        else:
+            result = await self._info_call(self._info.all_mids)
         return dict(result)
 
     async def user_fills(self) -> list[dict[str, Any]]:
         result = await self._info_call(self._info.user_fills, self.account_address)
         return list(result)
 
-    async def meta(self) -> dict[str, Any]:
+    async def meta(self, *, dex: str | None = None) -> dict[str, Any]:
+        if dex is not None:
+            result = await self._info_call(
+                self._raw_info_post, {"type": "metaAndAssetCtxs", "dex": dex}
+            )
+            return dict(result[0])
         result = await self._info_call(self._info.meta)
         return dict(result)
 
-    async def meta_and_asset_ctxs(self) -> tuple[dict[str, Any], list[dict[str, Any]]]:
+    async def meta_and_asset_ctxs(
+        self, *, dex: str | None = None
+    ) -> tuple[dict[str, Any], list[dict[str, Any]]]:
         """Return (meta, asset_ctxs). Asset_ctxs holds funding/volume/oracle per pair."""
-        result = await self._info_call(self._info.meta_and_asset_ctxs)
+        if dex is not None:
+            result = await self._info_call(
+                self._raw_info_post, {"type": "metaAndAssetCtxs", "dex": dex}
+            )
+        else:
+            result = await self._info_call(self._info.meta_and_asset_ctxs)
         return result[0], list(result[1])
 
-    async def funding_rate(self, pair: str) -> float | None:
+    async def funding_rate(self, pair: str, *, dex: str | None = None) -> float | None:
         """Fetch current hourly funding rate for `pair`. Returns None if not found.
 
         Uses meta_and_asset_ctxs (one info call) and reads the rate from the
         asset context whose universe entry matches `pair`. HL publishes funding
         as an hourly rate; APY = rate * 24 * 365.
         """
-        result = await self._info_call(self._info.meta_and_asset_ctxs)
-        universe = result[0].get("universe", [])
-        ctxs = result[1] if len(result) > 1 else []
+        meta, ctxs = await self.meta_and_asset_ctxs(dex=dex)
+        universe = meta.get("universe", [])
         for asset, ctx in zip(universe, ctxs, strict=False):
             if asset.get("name") == pair:
                 rate = ctx.get("funding")

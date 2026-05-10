@@ -105,8 +105,12 @@ class WsSubscriber:
 
         return wrapper
 
-    def subscribe_all_mids(self, callback: AllMidsCallback) -> int:
+    def subscribe_all_mids(
+        self, callback: AllMidsCallback, *, dex: str | None = None
+    ) -> int:
         sub: dict[str, Any] = {"type": "allMids"}
+        if dex is not None:
+            sub["dex"] = dex
         wrapper = self._make_all_mids_wrapper(callback)
         self._subscriptions.append((sub, wrapper))
         return int(self._info.subscribe(sub, wrapper))

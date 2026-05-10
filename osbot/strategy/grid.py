@@ -17,6 +17,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from osbot.config import BaseConfig
+from osbot.config.base import PairOverrides
 from osbot.observability import get_logger
 from osbot.strategy.tags import OrderIntent, OrderTag
 
@@ -169,16 +170,31 @@ def _round_price(price: float, sz_decimals: int) -> float:
 
 
 class GridStrategy:
-    def __init__(self, cfg: BaseConfig, sz_decimals: int, strategy_id: int = 0xCAFE) -> None:
+    def __init__(
+        self,
+        cfg: BaseConfig,
+        sz_decimals: int,
+        strategy_id: int = 0xCAFE,
+        *,
+        overrides: PairOverrides | None = None,
+    ) -> None:
         self.cfg = cfg
         self.sz_decimals = sz_decimals
         self.strategy_id = strategy_id
-        self.grid_levels = cfg.strategy.grid_levels
-        self.wallet_exposure_limit = cfg.strategy.wallet_exposure_limit
-        self.range_bps_min = float(cfg.strategy.range_bps_min)
+        s = cfg.strategy
+        self.grid_levels = s.grid_levels
+        self.wallet_exposure_limit = s.wallet_exposure_limit
+        self.range_bps_min = float(s.range_bps_min)
         self.min_notional_usd = cfg.risk.min_notional_usd
-        self.inventory_skew_gamma = float(cfg.strategy.inventory_skew_gamma)
-        self.inventory_skew_horizon_s = float(cfg.strategy.inventory_skew_horizon_s)
+        self.inventory_skew_gamma = float(s.inventory_skew_gamma)
+        self.inventory_skew_horizon_s = float(s.inventory_skew_horizon_s)
+        if overrides is not None:
+            if overrides.grid_levels is not None:
+                self.grid_levels = overrides.grid_levels
+            if overrides.range_bps_min is not None:
+                self.range_bps_min = float(overrides.range_bps_min)
+            if overrides.inventory_skew_gamma is not None:
+                self.inventory_skew_gamma = float(overrides.inventory_skew_gamma)
         self._last_plan_ts: float = 0.0
         self._last_plan_was_paused: bool = False
 
@@ -202,6 +218,7 @@ class GridStrategy:
         balance_usd: float,
         open_grid_cloids: list[str],
         position_signed_szi: float = 0.0,
+        n_active_pairs: int = 1,
     ) -> GridPlan:
         """Build the next GridPlan. Always cancels existing OPEN_GRID cloids.
 
@@ -232,7 +249,8 @@ class GridStrategy:
             return plan
         self._last_plan_was_paused = False
 
-        per_level_notional = (balance_usd * self.wallet_exposure_limit) / self.grid_levels
+        per_pair_wel = self.wallet_exposure_limit / max(n_active_pairs, 1)
+        per_level_notional = (balance_usd * per_pair_wel) / self.grid_levels
         bumped = False
         if per_level_notional < self.min_notional_usd:
             per_level_notional = self.min_notional_usd
