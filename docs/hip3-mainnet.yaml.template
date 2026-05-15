@@ -1,0 +1,73 @@
+# HIP-3 Mainnet Config — xyz Equity Perps Grid MM
+#
+# Based on 129h testnet soak + 8-day market survey (2026-05-15).
+# Pair selection: NVDA (best depth/spread), TSLA (most liquid), MSTR (widest spread).
+#
+# BEFORE USING:
+#   1. Copy to secrets/hip3-mainnet.yaml
+#   2. Set account_address to your mainnet wallet
+#   3. Set keyfile_path to your mainnet keyfile
+#   4. Set confirm_mainnet: true (explicit opt-in)
+#   5. Review sizing — this is micro-sized by design ($100-200 per pair)
+
+mode: mainnet
+confirm_mainnet: false  # <-- change to true after review
+account_address: '0xYOUR_MAINNET_WALLET_HERE'
+keyfile_path: secrets/mainnet.keyfile
+
+strategy:
+  dex: xyz  # route to xyz equity perps dex
+  pair: NVDA  # default/primary pair
+  leverage: 3
+  grid_levels: 5
+  wallet_exposure_limit: 0.15  # conservative: ~$150 total exposure on $1000
+  range_bps_min: 50
+  tp_pct: 0.002
+  sl_pct: 0.02
+  exit_ttl_s: 43200  # 12h
+  sl_consecutive_breaches: 2
+  inventory_skew_gamma: 500.0
+  inventory_skew_horizon_s: 300.0
+
+  pair_overrides:
+    # NVDA: 11.8x BTC spread, $169K depth at 5bps, $115M volume
+    # Sweet spot — tightest xyz spread but deepest book
+    NVDA:
+      range_bps_min: 40   # tighter than default — book is deep enough
+      grid_levels: 5
+      leverage: 3
+
+    # TSLA: 5.3x BTC spread, $128K depth at 5bps, $34M volume
+    # Tightest spread of the three — need competitive spacing
+    TSLA:
+      range_bps_min: 35
+      grid_levels: 5
+      leverage: 3
+
+    # MSTR: 27.1x BTC spread, $45K depth at 5bps, $12.8M volume
+    # Widest spread but thinnest book — wider grid, fewer levels
+    MSTR:
+      range_bps_min: 80   # wider to avoid being a large fraction of the book
+      grid_levels: 3      # fewer levels given thin depth
+      leverage: 2         # lower leverage due to higher vol
+
+risk:
+  max_daily_loss_pct: 0.03  # tighter than testnet (3% vs 5%)
+  min_notional_usd: 10.0
+
+observability:
+  shadow_db_path: data/hip3-mainnet-shadow.sqlite
+  health_port: 8080
+  # telegram_chat_id: 'YOUR_CHAT_ID'
+  # telegram_bot_token: 'YOUR_BOT_TOKEN'
+
+forager:
+  enabled: true
+  candidate_pairs:
+    - NVDA
+    - TSLA
+    - MSTR
+  top_n: 3           # run all three simultaneously
+  rotate_every_s: 3600
+  log_range_window_min: 16
+  min_volume_usd_24h: 1000.0

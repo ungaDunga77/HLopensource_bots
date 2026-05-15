@@ -2,39 +2,30 @@
 
 Ranked by recommended order. Items are independent unless noted.
 
-## Strategic pivot (2026-05-06)
+## Strategic pivot — resolved (2026-05-15)
 
-**The 159h Avellaneda γ=1000 soak settled at −1.18% net.** Annualized linear extrapolation is now negative (~−6.5%/yr); the strategy is capacity-bound, skill-bound, and structurally vulnerable to sustained trends (6 SLs, all stale shorts in uptrends). Tuning γ further would be measuring noise in a hostile regime. **The next investment should be in a different strategy class, not in tuning this one.**
+**HIP-3 equity perps grid MM is the confirmed path forward.** Validated by:
+- 129h testnet soak: +2.06%, Sharpe 8.52, max DD 1.86%, zero errors (see `docs/hip3-soak-verdict.md`)
+- 8-day market survey: all 5 xyz assets pass spread rule at 5.3–36.5× BTC (see `docs/market-survey-verdict.md`)
+- XEMM definitively rejected: HL-CEX funding spread 2.4–5.6% APY (need >8%), 0% persistence
+- Funding-rate harvester deprioritized: funding differential too small for standalone strategy
 
-Three candidate classes ranked by effort × expected edge:
-1. **Funding-rate harvester (todo §11 below).** Simplest of the three; HL funding APY readings during the soak ranged 100–300% on BTC. Different mechanics (no MM smarts; collect funding while delta-neutral). Realistic +20–50%/year if funding stays elevated; risk is funding flipping negative.
-2. **HIP-3 equity perps grid MM (todo §12 below).** Reuse the existing osbot infrastructure (vol-adaptive grid + trend filter + skew + reconnect/retry), point it at NVDA/TSLA/AAPL/COIN/etc. perps. The "weaker MMs / lower-sophistication flow" thesis from lessons.md applies. Needs market-hours logic, weekend gap handling, universe verification (most testnet HIP-3 perps live mainnet-only).
-3. **XEMM cross-exchange MM (todo §9, already on backlog).** Highest skill ceiling, two-venue infrastructure, real engineering cost. Defer until 1 or 2 has a baseline.
+**Recommended xyz pair set:** NVDA (best depth/spread), TSLA (most liquid), MSTR (widest spread).
 
-The current osbot — vol-adaptive grid + Avellaneda + trend filter — stays as the *defensive baseline*. Don't tune; reuse the infrastructure layer (M0–M3 work, WS reconnect, retry backoff, ShadowLogger, throttler, pre-trade checks) for whichever strategy class comes next. Current bot can keep running as a known-floor reference if desired, or stop and free the testnet account for the next strategy.
+**Next phase:** mainnet deployment planning. Testnet soak validated infra; market survey validated thesis. Remaining work is pair-specific config tuning and mainnet operational readiness.
 
-### 11. Funding-rate harvester (NEW, top priority)
-**From:** osbot soak observation — HL funding APY 100–300% during 159h window, far above realized PnL of grid MM.
-**Why:** Funding-rate harvesting is a textbook strategy for perps with positive sustained funding. Strategy: hold spot/equivalent or stay flat, short the perp when funding > threshold, collect 8h funding payments, hedge price risk by sizing the perp short against a delta-neutral basket or maintaining tight delta limits. No MM smarts needed; no edge in tight spreads. Edge is in *persistence* of funding skew.
-**What:** New strategy module (~200 LOC) replacing GridStrategy in the runner. State machine: monitor funding (already on /health), enter short when funding_rate_hourly > entry threshold (e.g. 0.0001/hour = 0.876% APY) and stay until funding < exit threshold or stop-loss on price. Reuse existing TripleBarrier for SL/TP, but the SL is on accumulated price loss, not per-trade.
-**Open questions:**
-1. Whether to hedge with spot HYPE/BTC or stay net-short and accept directional risk (cleaner but riskier).
-2. Position sizing: full account, or fractional? Funding harvest = leverage amplifier.
-3. Funding payment timing: every 1h on HL; need to verify settlement and accounting.
-4. Mainnet vs testnet funding pattern — does mainnet show similar persistent skew? Testnet APY may be artificially elevated.
-**Size:** Medium — ~200 LOC + tests. Reuses existing connector, throttler, ShadowLogger, runner shell.
-**Blocked by:** Decision on whether to keep the grid bot running in parallel or stop. Funding harvester would replace the active strategy in `secrets/roundtrip.yaml`.
-
-### 12. HIP-3 equity perps grid MM (NEW)
-**From:** lessons.md HIP-3 first-mover gap + 159h soak verdict that grid mechanics are sound but BTC market is too efficient.
-**Why:** Same vol-adaptive grid + Avellaneda + trend filter mechanics, but in markets where the bot competes against weaker MMs and slower flow. Stocks have natural mean-reversion windows (open-close) and predictable vol regimes (intraday vol > overnight vol). The strategy that loses on BTC (where every MM is sophisticated) may win on TSLA-perp.
+### 11. HIP-3 mainnet deployment planning (NEXT)
+**From:** Soak verdict + market survey verdict (2026-05-15)
+**Why:** Infra validated (129h, +2.06%), thesis validated (5.3–36.5× spreads). Next step is operational readiness for mainnet xyz equity perps.
 **What:**
-1. Universe verification: query mainnet `meta_and_asset_ctxs` for HIP-3 perps available on testnet vs mainnet only. Likely subset.
-2. Market-hours logic: pause grid when underlying equity market is closed (don't quote into a void).
-3. Weekend gap handling: flatten Friday close, restart Monday open.
-4. Per-asset σ calibration — equity perps may have very different vol characteristics than BTC.
-**Size:** Medium — ~150 LOC building on existing forager v1 multi-pair infrastructure.
-**Blocked by:** Funding harvester baseline (decide if HIP-3 grid PnL beats funding harvest before committing engineering).
+1. **Pair-specific config:** Per-pair overrides for NVDA/TSLA/MSTR — grid spacing calibrated to each asset's spread/depth profile (NVDA tighter, MSTR wider).
+2. **Market-hours logic:** Pause grid when underlying equity market is closed. xyz perps trade 24/7 but spreads blow out after-hours — quoting into that is adverse selection.
+3. **Weekend gap handling:** Flatten Friday close, restart Monday open. Or: keep quoting with wider spacing if weekend volume justifies it.
+4. **Mainnet sizing:** Micro-size initial deployment. Suggested: $100–200 per pair, 3× leverage, total $300–600 at risk.
+5. **Maker rebate accounting:** Mainnet has maker rebates (testnet doesn't). Recalculate expected net PnL with rebates — fees were 60% of closed PnL in the soak, rebates would flip this.
+6. **Operational runbook:** Health checks, alerting, position limits, kill-switch procedure.
+**Size:** Config + ~100 LOC for market-hours module.
+**Blocked by:** Manual mainnet deployment decision (not automated — testnet-only rule for code execution).
 
 ### 1. Enable + observe forager v1 on testnet
 **From:** v1 shipped 2026-04-26 (`9d050b1`), disabled by default  
@@ -95,10 +86,9 @@ The current osbot — vol-adaptive grid + Avellaneda + trend filter — stays as
 **Status:** We use `eth_keyfile` + password-from-env. Fine for research project.  
 **Recommendation:** Defer until user-facing deployment.
 
-### 9. XEMM Pacifica-HL Rust spinoff
-**From:** XEMM evaluation  
-**Why:** Different problem (cross-exchange MM hedging Pacifica positions on HL). High-quality Rust, blocker is one-line testnet flag fix.  
-**Recommendation:** Separate project, only if/when we want a Rust HL bot. Not part of osbot roadmap.
+### 9. XEMM Pacifica-HL Rust spinoff — **CLOSED**
+**From:** XEMM evaluation
+**Closed (2026-05-15):** Market survey Track 2 showed HL-CEX funding spread is 2.4–5.6% APY (threshold was 8%) with 0% tradeable persistence. The differential is structural (level shift), not episodic (tradeable dislocation). See `docs/market-survey-verdict.md`.
 
 ## Done (for reference)
 
@@ -119,3 +109,7 @@ The current osbot — vol-adaptive grid + Avellaneda + trend filter — stays as
 - Forager v1 — crypto-major rotation (`0250270` C1 + `d34f9fd` C2 + `9d050b1` C3, 2026-04-26)
 - Avellaneda-Stoikov inventory skew (`568bee0`, 2026-04-29) — γ=1000 default, soak complete 2026-05-04
 - Avellaneda γ=1000 111h live soak (2026-04-29 → 2026-05-04): net +0.12%, behaviors verified, default kept
+- HIP-3 multi-pair grid MM infrastructure, Phases 1-4 (`978edc4`, 2026-05-10)
+- HIP-3 129h testnet soak (2026-05-10 → 2026-05-15): +2.06%, Sharpe 8.52, max DD 1.86%, zero errors
+- 8-day market survey (2026-05-07 → 2026-05-15): 631K book snapshots, Track 1 PASS (5.3–36.5× spreads), Track 2 FAIL (XEMM dead)
+- XEMM permanently deferred: funding differential too small and structural, not episodic

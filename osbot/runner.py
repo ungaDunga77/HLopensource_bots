@@ -42,6 +42,7 @@ from osbot.state.fills import FillEventsManager
 from osbot.strategy.exit_manager import ExitManager
 from osbot.strategy.exits import TripleBarrier
 from osbot.strategy.grid import GridPlan, GridStrategy, MarketState, OrderSubmit
+from osbot.strategy.market_hours import Session, classify, is_equity_perp
 from osbot.strategy.selection import ForagerSelector, prepare_forager_pairs
 
 log = get_logger("osbot.runner")
@@ -280,6 +281,14 @@ async def _tick_pair(
         health.position_count = 0
 
     if pr.draining:
+        return
+
+    if is_equity_perp(pr.pair) and classify(now) == Session.CLOSED:
+        if pr.tracked_cloids:
+            log.info("market_hours: %s market closed, cancelling grid", pr.pair)
+            for cloid in list(pr.tracked_cloids):
+                await _cancel_cloid(client, pr.pair, cloid)
+            pr.tracked_cloids = []
         return
 
     if pr.grid.should_replan(now, state["replan_interval_s"], have_grid=bool(pr.tracked_cloids)):
