@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
-from osbot.strategy.market_hours import Session, classify, is_equity_perp
+from osbot.strategy.market_hours import Session, classify, is_equity_perp, should_flatten_for_weekend
 
 
 def _ts(year: int, month: int, day: int, hour: int, minute: int) -> float:
@@ -80,3 +80,35 @@ class TestIsEquityPerpCase:
         assert is_equity_perp("ETH") is False
         assert is_equity_perp("SOL") is False
         assert is_equity_perp("HYPE") is False
+
+
+# --- should_flatten_for_weekend ---
+
+class TestShouldFlattenForWeekendCase:
+    def test_friday_1555_triggers(self):
+        # Fri May 22 2026, 19:55 UTC = 15:55 ET
+        assert should_flatten_for_weekend(_ts(2026, 5, 22, 19, 55)) is True
+
+    def test_friday_1558_triggers(self):
+        # Fri May 22 2026, 19:58 UTC = 15:58 ET
+        assert should_flatten_for_weekend(_ts(2026, 5, 22, 19, 58)) is True
+
+    def test_friday_1600_does_not_trigger(self):
+        # Fri May 22 2026, 20:00 UTC = 16:00 ET (already CLOSED territory)
+        assert should_flatten_for_weekend(_ts(2026, 5, 22, 20, 0)) is False
+
+    def test_friday_1554_does_not_trigger(self):
+        # Fri May 22 2026, 19:54 UTC = 15:54 ET (too early)
+        assert should_flatten_for_weekend(_ts(2026, 5, 22, 19, 54)) is False
+
+    def test_monday_1555_does_not_trigger(self):
+        # Mon May 18 2026, 19:55 UTC = 15:55 ET (not Friday)
+        assert should_flatten_for_weekend(_ts(2026, 5, 18, 19, 55)) is False
+
+    def test_thursday_1555_does_not_trigger(self):
+        # Thu May 21 2026, 19:55 UTC = 15:55 ET (not Friday)
+        assert should_flatten_for_weekend(_ts(2026, 5, 21, 19, 55)) is False
+
+    def test_saturday_does_not_trigger(self):
+        # Sat May 16 2026
+        assert should_flatten_for_weekend(_ts(2026, 5, 16, 19, 55)) is False

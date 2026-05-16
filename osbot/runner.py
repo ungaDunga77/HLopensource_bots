@@ -42,7 +42,7 @@ from osbot.state.fills import FillEventsManager
 from osbot.strategy.exit_manager import ExitManager
 from osbot.strategy.exits import TripleBarrier
 from osbot.strategy.grid import GridPlan, GridStrategy, MarketState, OrderSubmit
-from osbot.strategy.market_hours import Session, classify, is_equity_perp
+from osbot.strategy.market_hours import Session, classify, is_equity_perp, should_flatten_for_weekend
 from osbot.strategy.selection import ForagerSelector, prepare_forager_pairs
 
 log = get_logger("osbot.runner")
@@ -281,6 +281,29 @@ async def _tick_pair(
         health.position_count = 0
 
     if pr.draining:
+        return
+
+    if is_equity_perp(pr.pair) and should_flatten_for_weekend(now):
+        if pr.tracked_cloids:
+            log.info("weekend_flatten: %s cancelling grid before close", pr.pair)
+            for cloid in list(pr.tracked_cloids):
+                await _cancel_cloid(client, pr.pair, cloid)
+            pr.tracked_cloids = []
+        position = _extract_signed_szi(user_state, pr.pair)
+        if position != 0.0:
+            log.warning(
+                "weekend_flatten: %s closing position szi=%.5f before weekend",
+                pr.pair,
+                position,
+            )
+            try:
+                await client.market_close(pr.pair)
+                shadow.snapshot(
+                    "weekend_flatten",
+                    {"tick": tick_idx, "pair": pr.pair, "mid": mid, "szi": position},
+                )
+            except AppError as e:
+                log.warning("weekend_flatten: market_close failed: %s", e.message)
         return
 
     if is_equity_perp(pr.pair) and classify(now) == Session.CLOSED:

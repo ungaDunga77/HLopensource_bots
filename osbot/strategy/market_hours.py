@@ -60,6 +60,19 @@ def classify(ts: float) -> Session:
     return Session.CLOSED
 
 
+def should_flatten_for_weekend(ts: float) -> bool:
+    """True during the Friday flatten window (15:55–16:00 ET).
+
+    Gives the runner 5 minutes to market-close all equity perp positions
+    before the weekend CLOSED window begins at 16:00 ET.
+    """
+    dt = datetime.fromtimestamp(ts, tz=_ET)
+    if dt.weekday() != 4:  # Friday only
+        return False
+    t = dt.time()
+    return time(15, 55) <= t < time(16, 0)
+
+
 def is_equity_perp(pair: str) -> bool:
     """True if the pair is an xyz equity perp (prefixed or known ticker)."""
     if pair.startswith("xyz:"):
