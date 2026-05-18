@@ -21,6 +21,7 @@ pip install -r requirements.txt
 - [docs/lessons.md](docs/lessons.md) — Accumulated findings
 - [docs/security-framework.md](docs/security-framework.md) — Security audit methodology
 - [docs/testing-workflow.md](docs/testing-workflow.md) — Clone-to-score pipeline
+- [docs/runbook.md](docs/runbook.md) — HIP-3 mainnet operational runbook
 
 ## Repo Layout
 

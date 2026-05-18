@@ -14,18 +14,17 @@ Ranked by recommended order. Items are independent unless noted.
 
 **Next phase:** mainnet deployment planning. Testnet soak validated infra; market survey validated thesis. Remaining work is pair-specific config tuning and mainnet operational readiness.
 
-### 11. HIP-3 mainnet deployment planning (NEXT)
+### 11. HIP-3 mainnet deployment planning — DONE
 **From:** Soak verdict + market survey verdict (2026-05-15)
 **Why:** Infra validated (129h, +2.06%), thesis validated (5.3–36.5× spreads). Next step is operational readiness for mainnet xyz equity perps.
 **What:**
-1. **Pair-specific config:** Per-pair overrides for NVDA/TSLA/MSTR — grid spacing calibrated to each asset's spread/depth profile (NVDA tighter, MSTR wider).
-2. **Market-hours logic:** Pause grid when underlying equity market is closed. xyz perps trade 24/7 but spreads blow out after-hours — quoting into that is adverse selection.
-3. **Weekend gap handling:** Flatten Friday close, restart Monday open. Or: keep quoting with wider spacing if weekend volume justifies it.
-4. **Mainnet sizing:** Micro-size initial deployment. Suggested: $100–200 per pair, 3× leverage, total $300–600 at risk.
-5. **Maker rebate accounting:** Mainnet has maker rebates (testnet doesn't). Recalculate expected net PnL with rebates — fees were 60% of closed PnL in the soak, rebates would flip this.
-6. **Operational runbook:** Health checks, alerting, position limits, kill-switch procedure.
-**Size:** Config + ~100 LOC for market-hours module.
-**Blocked by:** Manual mainnet deployment decision (not automated — testnet-only rule for code execution).
+1. ~~**Pair-specific config:**~~ DONE — `docs/hip3-mainnet.yaml.template` (2026-05-15)
+2. ~~**Market-hours logic:**~~ DONE — `osbot/strategy/market_hours.py` (2026-05-15)
+3. ~~**Weekend gap handling:**~~ DONE — flatten at Friday 15:55 ET (2026-05-18)
+4. ~~**Mainnet sizing:**~~ DONE — $100–200/pair in config template (2026-05-15)
+5. ~~**Maker rebate accounting:**~~ DONE — in soak verdict (2026-05-15)
+6. ~~**Operational runbook:**~~ DONE — `docs/runbook.md` (2026-05-18)
+**Blocked by:** Manual mainnet deployment decision only. All code and docs complete.
 
 ### 1. Enable + observe forager v1 on testnet
 **From:** v1 shipped 2026-04-26 (`9d050b1`), disabled by default  

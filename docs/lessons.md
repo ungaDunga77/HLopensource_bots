@@ -504,3 +504,17 @@ None of these have OSS precedent in the bots evaluated; would be invented strate
 **The full 159h soak is ammunition for that pivot, not a step toward γ tuning.** Do not A/B γ=500/1500/2000 on this strategy; the result would be measuring noise in a regime that is fundamentally hostile to this strategy class. The honest move is to declare the BTC-only baseline a *defensive baseline* — known behavior, known floor, known ceiling — and invest engineering effort in the *next* strategy class.
 
 **Operationally the bot was excellent.** 159h, zero interventions, zero crashes, six clean SL exits, 78 clean TP exits, 608 trend-pause cycles all defended correctly, 40 upstream HL errors all retried by bot. **The infrastructure layer (M0–M3 + Avellaneda + trend filter + WS reconnect + retry backoff) is production-grade.** Whatever strategy class comes next can build on this exact foundation.
+
+## HIP-3 Soak + Market Survey + Mainnet Prep (osbot, 2026-05-10 → 2026-05-18)
+
+**HIP-3 multi-pair grid MM validated.** 129h soak on testnet (BTC/ETH/SOL as stand-ins for xyz equity perps): +$17.91 (+2.06%), Sharpe 8.52, max DD 1.86%, 5,813 fills, zero errors. Paired with an 8-day mainnet market survey (631K order-book snapshots) confirming the thesis: xyz equity perps have 5.3–36.5× wider spreads than BTC.
+
+**Per-pair performance diverged sharply.** BTC carried +$23.74 net (60% of profit on 39% of volume). ETH marginal at +$3.19. SOL was a consistent drag at −$12.95 — negative closed PnL compounded by high fill count driving fees. **Lesson: not all pairs are equal even in the same strategy. Per-pair monitoring and willingness to drop underperformers is essential.** SOL was dropped from the mainnet pair set.
+
+**Fee structure dominates testnet PnL.** Fees consumed 60% of closed PnL ($20.72 on $34.70 gross). Mainnet maker rebates would drop fees from $20.72 to ~$1.70 on the same volume — a 138% improvement in net PnL. **Testnet fee structure is not representative of mainnet economics for grid MM strategies.** Always project with maker rebates before making go/no-go decisions.
+
+**Weekend gap handling for equity perps is a first-order concern.** xyz equity perps trade 24/7 but track US equities that close Friday 16:00 ET. Holding positions over a 56h weekend gap with no price discovery on the underlying creates unmanageable gap risk. **Solution: flatten all equity perp positions at Friday 15:55 ET (5-min window before close) via market_close.** The taker fee on micro-sized positions ($10–30 each) is negligible vs the gap risk avoided. The flatten fires in the runner before the existing CLOSED session check, ensuring grid is cancelled and positions are closed in a single tick window.
+
+**Market hours gating is necessary but not sufficient.** The CLOSED session (20:00–04:00 ET, weekends, holidays) cancels grid orders but does NOT close positions. This was a deliberate design choice for overnight holds (reasonable gap risk on a single night), but weekends need the additional flatten step. **Principle: design safety mechanisms in layers — session gating prevents new exposure, weekend flatten removes existing exposure.**
+
+**pytest `python_classes` config can silently skip tests.** This project uses `python_classes = ["Test*Case"]` in pyproject.toml. A test class named `TestShouldFlattenForWeekend` (without the `Case` suffix) was collected by Python's import system but silently excluded by pytest. No warning, no error — just missing from the test count. **Always verify new test classes appear in `--collect-only` output.**
