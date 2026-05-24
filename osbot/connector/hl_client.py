@@ -46,20 +46,18 @@ class HLClient:
         timeout: float = 10.0,
         wallet: LocalAccount | None = None,
         throttler: AsyncThrottler | None = None,
+        perp_dexes: list[str] | None = None,
     ) -> None:
         self.mode = mode
         self.account_address = account_address
         self._throttler = throttler or AsyncThrottler(DEFAULT_LIMITS)
-        # SDK 0.22.0 testnet spot_meta bug: universe references missing token
-        # indices. Pass an empty spot_meta to skip spot-asset mapping (we don't
-        # trade spot). See docs/lessons.md.
-        spot_meta_stub: Any = {"universe": [], "tokens": []}
         base_url = api_url(mode)
+        sdk_perp_dexs = perp_dexes if perp_dexes is not None else [""]
         self._info = Info(
             base_url=base_url,
             skip_ws=True,
             timeout=timeout,
-            spot_meta=spot_meta_stub,
+            perp_dexs=sdk_perp_dexs,
         )
         self._exchange: Exchange | None = None
         if wallet is not None:
@@ -67,8 +65,8 @@ class HLClient:
                 wallet=wallet,
                 base_url=base_url,
                 account_address=account_address,
-                spot_meta=spot_meta_stub,
                 timeout=timeout,
+                perp_dexs=sdk_perp_dexs,
             )
         self._info_url = base_url + "/info"
         self._timeout = timeout
@@ -134,6 +132,13 @@ class HLClient:
     async def user_state(self) -> dict[str, Any]:
         result = await self._info_call(self._info.user_state, self.account_address)
         return dict(result)
+
+    async def user_abstraction_mode(self) -> str:
+        """Return the account abstraction mode: 'default', 'unified', or 'portfolio'."""
+        result = await self._info_call(
+            self._raw_info_post, {"type": "userAbstraction", "user": self.account_address}
+        )
+        return str(result) if isinstance(result, str) else result.get("mode", "unknown")
 
     async def open_orders(self) -> list[dict[str, Any]]:
         result = await self._info_call(self._info.open_orders, self.account_address)

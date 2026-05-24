@@ -43,10 +43,14 @@ _RECONNECT_BACKOFF_CAP_S = 60.0
 
 
 class WsSubscriber:
-    def __init__(self, mode: str, account_address: str, *, timeout: float = 10.0) -> None:
+    def __init__(
+        self, mode: str, account_address: str, *,
+        timeout: float = 10.0, perp_dexes: list[str] | None = None,
+    ) -> None:
         self.mode = mode
         self.account_address = account_address
         self.timeout = timeout
+        self._perp_dexes = perp_dexes
         self._lock = threading.Lock()
         self._last_message_ts: float = 0.0
         # Subscriptions are stored so the watchdog can replay them on reconnect.
@@ -59,14 +63,14 @@ class WsSubscriber:
         self._watchdog_task: asyncio.Task[None] | None = None
 
     def _make_info(self) -> Info:
-        # SDK 0.22.0 testnet spot_meta bug — same workaround as HLClient.
-        spot_meta_stub: Any = {"universe": [], "tokens": []}
-        return Info(
-            base_url=api_url(self.mode),
-            skip_ws=False,
-            timeout=self.timeout,
-            spot_meta=spot_meta_stub,
-        )
+        kwargs: dict[str, Any] = {
+            "base_url": api_url(self.mode),
+            "skip_ws": False,
+            "timeout": self.timeout,
+        }
+        if self._perp_dexes is not None:
+            kwargs["perp_dexs"] = self._perp_dexes
+        return Info(**kwargs)
 
     @property
     def last_message_ts(self) -> float:

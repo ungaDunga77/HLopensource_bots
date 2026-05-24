@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
-from osbot.strategy.market_hours import Session, classify, is_equity_perp, should_flatten_for_weekend
+from osbot.strategy.market_hours import Session, classify, dex_for_pair, is_equity_perp, should_flatten_for_weekend
 
 
 def _ts(year: int, month: int, day: int, hour: int, minute: int) -> float:
@@ -80,6 +80,20 @@ class TestIsEquityPerpCase:
         assert is_equity_perp("ETH") is False
         assert is_equity_perp("SOL") is False
         assert is_equity_perp("HYPE") is False
+
+
+# --- dex_for_pair ---
+
+class TestDexForPairCase:
+    def test_crypto_returns_none(self):
+        assert dex_for_pair("BTC") is None
+        assert dex_for_pair("ETH") is None
+        assert dex_for_pair("SOL") is None
+
+    def test_equity_returns_xyz(self):
+        assert dex_for_pair("xyz:NVDA") == "xyz"
+        assert dex_for_pair("xyz:TSLA") == "xyz"
+        assert dex_for_pair("MSTR") == "xyz"
 
 
 # --- should_flatten_for_weekend ---

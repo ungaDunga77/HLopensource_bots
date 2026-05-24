@@ -79,3 +79,8 @@ def is_equity_perp(pair: str) -> bool:
         return True
     # Bare tickers that live on xyz dex
     return pair in {"NVDA", "TSLA", "AAPL", "COIN", "MSTR", "MSFT", "GOOGL", "AMZN", "SPX"}
+
+
+def dex_for_pair(pair: str) -> str | None:
+    """Return the HL dex identifier for a pair: ``"xyz"`` for equity perps, ``None`` for main."""
+    return "xyz" if is_equity_perp(pair) else None

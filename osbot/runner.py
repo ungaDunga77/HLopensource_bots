@@ -42,7 +42,7 @@ from osbot.state.fills import FillEventsManager
 from osbot.strategy.exit_manager import ExitManager
 from osbot.strategy.exits import TripleBarrier
 from osbot.strategy.grid import GridPlan, GridStrategy, MarketState, OrderSubmit
-from osbot.strategy.market_hours import Session, classify, is_equity_perp, should_flatten_for_weekend
+from osbot.strategy.market_hours import Session, classify, dex_for_pair, is_equity_perp, should_flatten_for_weekend
 from osbot.strategy.selection import ForagerSelector, prepare_forager_pairs
 
 log = get_logger("osbot.runner")
@@ -265,8 +265,7 @@ async def _tick_pair(
 
     mid_str = client.cached_mid(pr.pair)
     if mid_str is None:
-        dex = ctx.cfg.strategy.dex
-        mids = await client.all_mids(dex=dex)
+        mids = await client.all_mids(dex=dex_for_pair(pr.pair))
         mid_str = mids.get(pr.pair)
     if not mid_str:
         log.warning("tick %d: no mid for %s", tick_idx, pr.pair)
@@ -445,20 +444,20 @@ async def _tick(  # noqa: PLR0912
     # Forager: feed selector with mids each tick (cheap), update ctxs at the
     # funding cadence, rotate at rotate_every_s.
     if selector is not None and cfg.forager.enabled:
-        # Pull all_mids once per tick when selector is active. For non-active
-        # candidates we don't have cached_mid (no per-pair caching beyond WS).
-        dex = cfg.strategy.dex
-        try:
-            all_mids = await client.all_mids(dex=dex)
-            selector.update_mids(now, all_mids)  # type: ignore[arg-type]
-        except AppError as e:
-            log.warning("forager: all_mids failed: %s (selector starved this tick)", e.message)
-        if tick_idx % state["funding_sample_every"] == 0:
+        # Pull all_mids from each dex that has candidate pairs, then merge.
+        for dex_id in state["active_dexes"]:
             try:
-                meta_ctxs = await client.meta_and_asset_ctxs(dex=dex)
-                selector.update_asset_ctxs(meta_ctxs[0].get("universe", []), meta_ctxs[1])
+                dex_mids = await client.all_mids(dex=dex_id)
+                selector.update_mids(now, dex_mids)  # type: ignore[arg-type]
             except AppError as e:
-                log.warning("forager: meta_and_asset_ctxs failed: %s", e.message)
+                log.warning("forager: all_mids(dex=%s) failed: %s", dex_id, e.message)
+        if tick_idx % state["funding_sample_every"] == 0:
+            for dex_id in state["active_dexes"]:
+                try:
+                    meta_ctxs = await client.meta_and_asset_ctxs(dex=dex_id)
+                    selector.update_asset_ctxs(meta_ctxs[0].get("universe", []), meta_ctxs[1])
+                except AppError as e:
+                    log.warning("forager: meta_and_asset_ctxs(dex=%s) failed: %s", dex_id, e.message)
         last_rot = state.get("last_rotate_ts", 0.0)
         if (now - last_rot) >= cfg.forager.rotate_every_s:
             rotated = await _rotate_forager(
@@ -497,13 +496,12 @@ async def _tick(  # noqa: PLR0912
         )
 
     if tick_idx % state["funding_sample_every"] == 0 and pairs:
-        dex = cfg.strategy.dex
         for pair_name in pairs:
-            rate = await client.funding_rate(pair_name, dex=dex)
+            rate = await client.funding_rate(pair_name, dex=dex_for_pair(pair_name))
             if rate is not None:
                 shadow.record_funding_rate(pair_name, rate)
         primary = cfg.strategy.pair if cfg.strategy.pair in pairs else next(iter(pairs))
-        primary_rate = await client.funding_rate(primary, dex=dex)
+        primary_rate = await client.funding_rate(primary, dex=dex_for_pair(primary))
         if primary_rate is not None:
             health.funding_rate_hourly = primary_rate
 
@@ -616,7 +614,6 @@ async def run(
     if cfg.forager.enabled:
         pair_meta = await prepare_forager_pairs(
             ctx.client, cfg.forager.candidate_pairs, cfg.strategy.leverage,
-            dex=cfg.strategy.dex,
             pair_overrides=cfg.strategy.pair_overrides,
         )
         selector = ForagerSelector(
@@ -635,13 +632,26 @@ async def run(
     await server.start()
     _install_signal_handlers(health)
 
+    # Determine which dexes need data feeds based on candidate pairs.
+    active_dexes: set[str | None] = set()
+    if cfg.forager.enabled:
+        for p in cfg.forager.candidate_pairs:
+            active_dexes.add(dex_for_pair(p))
+    else:
+        active_dexes.add(dex_for_pair(cfg.strategy.pair))
+
     ws: WsSubscriber | None = None
     if enable_ws:
-        ws = WsSubscriber(mode=cfg.mode, account_address=cfg.account_address)
-        ws.subscribe_all_mids(ctx.client.update_mids, dex=cfg.strategy.dex)
+        perp_dexes = sorted({d or "" for d in active_dexes})
+        ws = WsSubscriber(
+            mode=cfg.mode, account_address=cfg.account_address,
+            perp_dexes=perp_dexes,
+        )
+        for dex_id in active_dexes:
+            ws.subscribe_all_mids(ctx.client.update_mids, dex=dex_id)
         ws.subscribe_user_fills(lambda f: (fills_mgr.ingest(f), None)[1])
         ws.start_watchdog()
-        log.info("runner: WS subscriber started (allMids + userFills, with reconnect)")
+        log.info("runner: WS subscriber started (allMids for dexes=%s + userFills)", active_dexes)
 
     rs = _RunnerState(
         ctx=ctx,
@@ -660,6 +670,7 @@ async def run(
             "equity_snapshot_every": equity_snapshot_every,
             "fill_reconcile_every": fill_reconcile_every,
             "funding_sample_every": funding_sample_every,
+            "active_dexes": list(active_dexes),
             # Force initial rotation on first tick: last_rotate_ts=0 makes
             # (now - last_rotate_ts) >= rotate_every_s trivially true.
             "last_rotate_ts": 0.0,

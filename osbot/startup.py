@@ -34,6 +34,7 @@ from osbot.connector.errors import AppError, AuthError, StructuralError
 from osbot.connector.hl_client import HLClient
 from osbot.observability import get_logger
 from osbot.observability.shadow import ShadowLogger
+from osbot.strategy.market_hours import dex_for_pair
 
 log = get_logger("osbot.startup")
 
@@ -122,8 +123,24 @@ async def run_startup(cfg: BaseConfig) -> StartupContext:
     wallet = _derive_wallet(cfg)
 
     # Step 5: HLClient with explicit account_address.
-    client = HLClient(mode=cfg.mode, account_address=cfg.account_address, wallet=wallet)
-    log.info("startup step 5: HLClient ready")
+    # Derive perp dex list from forager candidates so the SDK registers xyz pairs.
+    all_pairs = list(cfg.forager.candidate_pairs) if cfg.forager.enabled else [cfg.strategy.pair]
+    perp_dexes = sorted({dex_for_pair(p) or "" for p in all_pairs})
+    client = HLClient(
+        mode=cfg.mode, account_address=cfg.account_address, wallet=wallet,
+        perp_dexes=perp_dexes,
+    )
+    log.info("startup step 5: HLClient ready (perp_dexes=%s)", perp_dexes)
+
+    # Step 5b: account abstraction mode check.
+    abstraction_mode = await client.user_abstraction_mode()
+    log.info("startup step 5b: account abstraction mode=%s", abstraction_mode)
+    if abstraction_mode not in ("default", "manual"):
+        raise StructuralError(
+            f"account is in '{abstraction_mode}' mode — bot requires 'default' or 'manual' "
+            f"(unified/portfolio mode moves balances to spotClearinghouseState, "
+            f"which user_state() cannot read). Switch to manual mode in HL UI."
+        )
 
     # Step 6: clearinghouse sanity.
     state = await client.user_state()

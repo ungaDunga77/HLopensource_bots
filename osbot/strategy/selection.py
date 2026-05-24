@@ -30,6 +30,7 @@ from osbot.config.base import PairOverrides
 from osbot.connector.errors import AppError, StructuralError
 from osbot.connector.hl_client import HLClient
 from osbot.observability import get_logger
+from osbot.strategy.market_hours import dex_for_pair
 
 log = get_logger("osbot.selection")
 
@@ -149,13 +150,29 @@ async def prepare_forager_pairs(
     universe. Pairs missing from the venue are dropped with a warning rather
     than raising — the forager is resilient to partial-universe deployments
     (e.g. some HL pairs are mainnet-only).
+
+    Candidates may span multiple dexes (main + xyz). Each pair's dex is
+    determined by ``dex_for_pair()``; meta is fetched per-dex and merged.
+    The ``dex`` kwarg is ignored when ``dex_for_pair`` provides the answer
+    (kept for backward compat with single-dex callers).
     """
-    meta = await client.meta(dex=dex)
-    universe = {u["name"]: int(u.get("szDecimals", 0)) for u in meta.get("universe", [])}
+    dex_groups: dict[str | None, list[str]] = {}
+    for pair in candidates:
+        d = dex_for_pair(pair)
+        dex_groups.setdefault(d, []).append(pair)
+
+    universe: dict[str, int] = {}
+    for dex_id, group_pairs in dex_groups.items():
+        meta = await client.meta(dex=dex_id)
+        for u in meta.get("universe", []):
+            name = u.get("name")
+            if name in group_pairs:
+                universe[name] = int(u.get("szDecimals", 0))
+
     valid: dict[str, int] = {}
     for pair in candidates:
         if pair not in universe:
-            log.warning("forager: candidate %s not in HL universe; dropping", pair)
+            log.warning("forager: candidate %s not in HL universe (dex=%s); dropping", pair, dex_for_pair(pair))
             continue
         valid[pair] = universe[pair]
     if not valid:
