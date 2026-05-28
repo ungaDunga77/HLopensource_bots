@@ -39,6 +39,8 @@ from osbot.strategy.market_hours import dex_for_pair
 log = get_logger("osbot.startup")
 
 KEYFILE_PASSWORD_ENV = "OSBOT_KEYFILE_PASSWORD"
+PRIVATE_KEY_ENV_MAINNET = "HYPERLIQUID_MAINNET_PRIVATE_KEY"
+PRIVATE_KEY_ENV_TESTNET = "HYPERLIQUID_TESTNET_PRIVATE_KEY"
 
 
 @dataclass
@@ -62,15 +64,24 @@ def _resolve_password(cfg: BaseConfig) -> str:
 
 
 def _derive_wallet(cfg: BaseConfig) -> LocalAccount:
-    password = _resolve_password(cfg)
-    key_bytes = load_keyfile(cfg.keyfile_path, password)
-    try:
-        wallet: LocalAccount = Account.from_key(key_bytes)
-    finally:
-        # Best-effort: rebind to make the original buffer unreachable. CPython
-        # doesn't guarantee zeroing of bytes objects.
-        key_bytes = b"\x00" * len(key_bytes)
-        del key_bytes
+    # Prefer raw private key from env var (no keyfile/password needed).
+    env_key = PRIVATE_KEY_ENV_MAINNET if cfg.mode == "mainnet" else PRIVATE_KEY_ENV_TESTNET
+    raw_key = os.environ.get(env_key)
+    if raw_key:
+        try:
+            wallet: LocalAccount = Account.from_key(raw_key)
+        except Exception as e:
+            raise AuthError(f"invalid private key in {env_key}", cause=e) from e
+        log.info("startup step 4: wallet from env var %s", env_key)
+    else:
+        password = _resolve_password(cfg)
+        key_bytes = load_keyfile(cfg.keyfile_path, password)
+        try:
+            wallet = Account.from_key(key_bytes)
+        finally:
+            key_bytes = b"\x00" * len(key_bytes)
+            del key_bytes
+        log.info("startup step 4: wallet from keyfile %s", cfg.keyfile_path)
     if wallet.address.lower() != cfg.account_address.lower():
         log.info("startup step 4: signing wallet differs from account_address (agent mode)")
     else:

@@ -162,14 +162,25 @@ async def _apply_plan(
 
 
 async def _reconcile_orders(
-    client: HLClient, pair: str, tracked: list[str]
+    client: HLClient, pair: str, tracked: list[str],
+    strategy_id: int | None = None,
 ) -> list[str]:
     live_orders = await client.open_orders()
-    live_cloids: set[str] = {
-        str(o.get("cloid"))
-        for o in live_orders
-        if o.get("coin") == pair and o.get("cloid")
-    }
+    live_cloids: set[str] = set()
+    for o in live_orders:
+        if o.get("coin") != pair:
+            continue
+        cloid = o.get("cloid")
+        if not cloid:
+            continue
+        cloid_str = str(cloid)
+        live_cloids.add(cloid_str)
+        # Cancel orphaned orders: live on exchange, not tracked, but ours by prefix.
+        if strategy_id is not None and cloid_str not in tracked:
+            prefix = f"0x{strategy_id & 0xFFFF:04x}"
+            if cloid_str.startswith(prefix):
+                log.warning("reconcile: cancelling orphaned order %s for %s", cloid_str, pair)
+                await _cancel_cloid(client, pair, cloid_str)
     return [c for c in tracked if c in live_cloids]
 
 
@@ -357,7 +368,9 @@ async def _tick_pair(
         pr.tracked_cloids = await _apply_plan(client, pr.pair, plan, risk, health)
 
     if tick_idx % state["reconcile_every"] == 0:
-        pr.tracked_cloids = await _reconcile_orders(client, pr.pair, pr.tracked_cloids)
+        pr.tracked_cloids = await _reconcile_orders(
+            client, pr.pair, pr.tracked_cloids, strategy_id=pr.grid.strategy_id,
+        )
 
 
 async def _rotate_forager(

@@ -268,6 +268,26 @@ class GridStrategy:
             log.error("grid: level size rounded to 0; skipping submits")
             return plan
 
+        # Position cap: limit increase-side levels to stay within WEL.
+        max_position_coin = (balance_usd * per_pair_wel) / mid if mid > 0 else 0.0
+        if position_signed_szi >= 0:
+            room_buy = max(max_position_coin - position_signed_szi, 0.0)
+            room_sell = max_position_coin + position_signed_szi
+        else:
+            room_buy = max_position_coin + abs(position_signed_szi)
+            room_sell = max(max_position_coin - abs(position_signed_szi), 0.0)
+        _tol = level_size * 0.01
+        max_buy_levels = min(self.grid_levels, int((room_buy + _tol) / level_size)) if level_size > 0 else 0
+        max_sell_levels = min(self.grid_levels, int((room_sell + _tol) / level_size)) if level_size > 0 else 0
+        capped_buys = max_buy_levels < self.grid_levels
+        capped_sells = max_sell_levels < self.grid_levels
+        if capped_buys or capped_sells:
+            log.warning(
+                "grid: position cap active pos=%.5f max=%.5f — buy_levels=%d/%d sell_levels=%d/%d",
+                position_signed_szi, max_position_coin,
+                max_buy_levels, self.grid_levels, max_sell_levels, self.grid_levels,
+            )
+
         # Avellaneda-Stoikov reservation-price skew. Defaults to mid when gamma=0.
         skew_frac = 0.0
         if self.inventory_skew_gamma > 0.0 and balance_usd > 0.0:
@@ -277,36 +297,42 @@ class GridStrategy:
             skew_frac = q * self.inventory_skew_gamma * (sigma_frac * sigma_frac) * t_min
         reservation_price = mid * (1.0 - skew_frac)
 
+        buy_count = 0
+        sell_count = 0
         for i in range(1, self.grid_levels + 1):
             offset = (spacing_bps * i) / 10_000.0
             buy_px = _round_price(reservation_price * (1 - offset), self.sz_decimals)
             sell_px = _round_price(reservation_price * (1 + offset), self.sz_decimals)
-            buy_cloid = OrderTag(
-                strategy_id=self.strategy_id, intent=OrderIntent.OPEN_GRID, level=i
-            ).to_cloid()
-            sell_cloid = OrderTag(
-                strategy_id=self.strategy_id, intent=OrderIntent.OPEN_GRID, level=i
-            ).to_cloid()
-            plan.submits.append(
-                OrderSubmit(
-                    intent=OrderIntent.OPEN_GRID,
-                    side="buy",
-                    size=level_size,
-                    price=buy_px,
-                    cloid=buy_cloid,
-                    level=i,
+            if buy_count < max_buy_levels:
+                buy_cloid = OrderTag(
+                    strategy_id=self.strategy_id, intent=OrderIntent.OPEN_GRID, level=i
+                ).to_cloid()
+                plan.submits.append(
+                    OrderSubmit(
+                        intent=OrderIntent.OPEN_GRID,
+                        side="buy",
+                        size=level_size,
+                        price=buy_px,
+                        cloid=buy_cloid,
+                        level=i,
+                    )
                 )
-            )
-            plan.submits.append(
-                OrderSubmit(
-                    intent=OrderIntent.OPEN_GRID,
-                    side="sell",
-                    size=level_size,
-                    price=sell_px,
-                    cloid=sell_cloid,
-                    level=i,
+                buy_count += 1
+            if sell_count < max_sell_levels:
+                sell_cloid = OrderTag(
+                    strategy_id=self.strategy_id, intent=OrderIntent.OPEN_GRID, level=i
+                ).to_cloid()
+                plan.submits.append(
+                    OrderSubmit(
+                        intent=OrderIntent.OPEN_GRID,
+                        side="sell",
+                        size=level_size,
+                        price=sell_px,
+                        cloid=sell_cloid,
+                        level=i,
+                    )
                 )
-            )
+                sell_count += 1
 
         log.info(
             "grid plan: sigma=%.1fbps slope=%.1fbps range=%.1fbps spacing=%.1fbps"

@@ -135,17 +135,22 @@ def test_grid_plan_pauses_on_trend() -> None:
 
 
 def test_grid_plan_bumps_to_min_notional() -> None:
-    g = GridStrategy(_cfg(), sz_decimals=5)
+    # WEL=0.2, balance=200: per-level = $8, below $10 min → bump to $10.
+    # Position cap: max_pos = (200*0.2)/60000 = 0.000667; level_size = 0.00017.
+    # Cap allows 3 buy + 3 sell (0.00051 < 0.000667).
+    g = GridStrategy(_cfg(wallet_exposure_limit=0.2), sz_decimals=5)
     m = MarketState()
     for i in range(20):
         m.sample(ts=float(i * 60), mid=60_000.0)
-    # balance 100 * 0.1 / 5 = $2, below $10 min; should bump.
     plan = g.plan(
-        now=20 * 60, mid=60_000.0, market=m, balance_usd=100.0, open_grid_cloids=[]
+        now=20 * 60, mid=60_000.0, market=m, balance_usd=200.0, open_grid_cloids=[]
     )
-    assert len(plan.submits) == 10
-    # $10 / $60k mid = 0.000167 → rounded to 5dp = 0.00017
+    assert len(plan.submits) > 0
     assert math.isclose(plan.submits[0].size, 0.00017, abs_tol=1e-5)
+    buys = [s for s in plan.submits if s.side == "buy"]
+    sells = [s for s in plan.submits if s.side == "sell"]
+    assert len(buys) == len(sells)
+    assert len(buys) < 5  # position cap reduces from full 5 levels
 
 
 def test_round_size_basic() -> None:
@@ -154,9 +159,8 @@ def test_round_size_basic() -> None:
 
 def test_grid_skew_disabled_by_default_keeps_symmetry_with_position() -> None:
     """gamma=0 (default) ⇒ grid is symmetric around mid regardless of position."""
-    g = GridStrategy(_cfg(), sz_decimals=5)
+    g = GridStrategy(_cfg(wallet_exposure_limit=1.0), sz_decimals=5)
     m = MarketState()
-    # Inject vol so sigma_bps > 0 — would otherwise zero out skew_frac too.
     for i in range(30):
         mid_i = 60_000.0 * (1 + 0.001 * ((i % 2) * 2 - 1))
         m.sample(ts=float(i * 60), mid=mid_i)
@@ -164,20 +168,19 @@ def test_grid_skew_disabled_by_default_keeps_symmetry_with_position() -> None:
         now=30 * 60,
         mid=60_000.0,
         market=m,
-        balance_usd=10_000.0,
+        balance_usd=100_000.0,
         open_grid_cloids=[],
-        position_signed_szi=0.5,  # large long; would skew if gamma>0
+        position_signed_szi=0.5,
     )
     buys = sorted([s.price for s in plan.submits if s.side == "buy"], reverse=True)
     sells = sorted([s.price for s in plan.submits if s.side == "sell"])
-    # Symmetric: each sell-mid distance == matching buy-mid distance.
     assert math.isclose(sells[0] - 60_000.0, 60_000.0 - buys[0], rel_tol=1e-4)
 
 
 def test_grid_skew_long_inventory_shifts_grid_down() -> None:
     """gamma>0 + long position ⇒ reservation price < mid, both sides shift down."""
     g = GridStrategy(
-        _cfg(inventory_skew_gamma=10_000.0, inventory_skew_horizon_s=300.0),
+        _cfg(inventory_skew_gamma=10_000.0, inventory_skew_horizon_s=300.0, wallet_exposure_limit=1.0),
         sz_decimals=5,
     )
     m = MarketState()
@@ -185,19 +188,17 @@ def test_grid_skew_long_inventory_shifts_grid_down() -> None:
         mid_i = 60_000.0 * (1 + 0.001 * ((i % 2) * 2 - 1))
         m.sample(ts=float(i * 60), mid=mid_i)
     plan_flat = g.plan(
-        now=30 * 60, mid=60_000.0, market=m, balance_usd=10_000.0,
+        now=30 * 60, mid=60_000.0, market=m, balance_usd=100_000.0,
         open_grid_cloids=[], position_signed_szi=0.0,
     )
-    # New instance to reset replan state.
     g2 = GridStrategy(
-        _cfg(inventory_skew_gamma=10_000.0, inventory_skew_horizon_s=300.0),
+        _cfg(inventory_skew_gamma=10_000.0, inventory_skew_horizon_s=300.0, wallet_exposure_limit=1.0),
         sz_decimals=5,
     )
     plan_long = g2.plan(
-        now=30 * 60, mid=60_000.0, market=m, balance_usd=10_000.0,
+        now=30 * 60, mid=60_000.0, market=m, balance_usd=100_000.0,
         open_grid_cloids=[], position_signed_szi=0.5,
     )
-    # Long inventory ⇒ all prices shift downward (sells closer to mid, buys further).
     sells_flat = sorted([s.price for s in plan_flat.submits if s.side == "sell"])
     sells_long = sorted([s.price for s in plan_long.submits if s.side == "sell"])
     assert sells_long[0] < sells_flat[0]
@@ -209,11 +210,11 @@ def test_grid_skew_long_inventory_shifts_grid_down() -> None:
 def test_grid_skew_short_inventory_shifts_grid_up() -> None:
     """gamma>0 + short position ⇒ reservation price > mid, both sides shift up."""
     g_flat = GridStrategy(
-        _cfg(inventory_skew_gamma=10_000.0, inventory_skew_horizon_s=300.0),
+        _cfg(inventory_skew_gamma=10_000.0, inventory_skew_horizon_s=300.0, wallet_exposure_limit=1.0),
         sz_decimals=5,
     )
     g_short = GridStrategy(
-        _cfg(inventory_skew_gamma=10_000.0, inventory_skew_horizon_s=300.0),
+        _cfg(inventory_skew_gamma=10_000.0, inventory_skew_horizon_s=300.0, wallet_exposure_limit=1.0),
         sz_decimals=5,
     )
     m = MarketState()
@@ -221,11 +222,11 @@ def test_grid_skew_short_inventory_shifts_grid_up() -> None:
         mid_i = 60_000.0 * (1 + 0.001 * ((i % 2) * 2 - 1))
         m.sample(ts=float(i * 60), mid=mid_i)
     plan_flat = g_flat.plan(
-        now=30 * 60, mid=60_000.0, market=m, balance_usd=10_000.0,
+        now=30 * 60, mid=60_000.0, market=m, balance_usd=100_000.0,
         open_grid_cloids=[], position_signed_szi=0.0,
     )
     plan_short = g_short.plan(
-        now=30 * 60, mid=60_000.0, market=m, balance_usd=10_000.0,
+        now=30 * 60, mid=60_000.0, market=m, balance_usd=100_000.0,
         open_grid_cloids=[], position_signed_szi=-0.5,
     )
     sells_flat = sorted([s.price for s in plan_flat.submits if s.side == "sell"])
@@ -293,6 +294,75 @@ def test_should_replan_when_grid_lost_to_fills() -> None:
     g.plan(now=20 * 60, mid=60_000.0, market=m, balance_usd=10_000.0, open_grid_cloids=[])
     # Last plan submitted; if grid is now empty, that means fills consumed it.
     assert g.should_replan(now=20 * 60 + 60, replan_interval_s=300.0, have_grid=False)
+
+
+def test_grid_caps_buys_when_long_at_limit() -> None:
+    """When position is at WEL, no more buy orders (increase-side) are placed."""
+    g = GridStrategy(_cfg(wallet_exposure_limit=0.1), sz_decimals=5)
+    m = MarketState()
+    for i in range(20):
+        m.sample(ts=float(i * 60), mid=60_000.0)
+    # WEL=0.1, balance=10_000 → max notional = $1,000 → max pos = 1000/60000 ≈ 0.01667
+    # Position already at 0.017 (beyond cap)
+    plan = g.plan(
+        now=20 * 60, mid=60_000.0, market=m, balance_usd=10_000.0,
+        open_grid_cloids=[], position_signed_szi=0.017,
+    )
+    buys = [s for s in plan.submits if s.side == "buy"]
+    sells = [s for s in plan.submits if s.side == "sell"]
+    assert len(buys) == 0
+    assert len(sells) == 5
+
+
+def test_grid_caps_sells_when_short_at_limit() -> None:
+    """When short position is at WEL, no more sell orders are placed."""
+    g = GridStrategy(_cfg(wallet_exposure_limit=0.1), sz_decimals=5)
+    m = MarketState()
+    for i in range(20):
+        m.sample(ts=float(i * 60), mid=60_000.0)
+    plan = g.plan(
+        now=20 * 60, mid=60_000.0, market=m, balance_usd=10_000.0,
+        open_grid_cloids=[], position_signed_szi=-0.017,
+    )
+    buys = [s for s in plan.submits if s.side == "buy"]
+    sells = [s for s in plan.submits if s.side == "sell"]
+    assert len(sells) == 0
+    assert len(buys) == 5
+
+
+def test_grid_partial_cap_reduces_increase_levels() -> None:
+    """Position partially consumed → fewer increase-side levels, all decrease-side."""
+    g = GridStrategy(_cfg(wallet_exposure_limit=0.1), sz_decimals=5)
+    m = MarketState()
+    for i in range(20):
+        m.sample(ts=float(i * 60), mid=60_000.0)
+    # level_size = round($200/60000, 5dp) = 0.00333; max_pos = 0.01667
+    # At pos=0.01, room = 0.00667, allows 2 buy levels (0.00667/0.00333=2)
+    plan = g.plan(
+        now=20 * 60, mid=60_000.0, market=m, balance_usd=10_000.0,
+        open_grid_cloids=[], position_signed_szi=0.01,
+    )
+    buys = [s for s in plan.submits if s.side == "buy"]
+    sells = [s for s in plan.submits if s.side == "sell"]
+    assert len(buys) < 5
+    assert len(buys) > 0
+    assert len(sells) == 5
+
+
+def test_grid_flat_position_allows_all_levels() -> None:
+    """Flat position → both sides get all levels."""
+    g = GridStrategy(_cfg(wallet_exposure_limit=0.1), sz_decimals=5)
+    m = MarketState()
+    for i in range(20):
+        m.sample(ts=float(i * 60), mid=60_000.0)
+    plan = g.plan(
+        now=20 * 60, mid=60_000.0, market=m, balance_usd=10_000.0,
+        open_grid_cloids=[], position_signed_szi=0.0,
+    )
+    buys = [s for s in plan.submits if s.side == "buy"]
+    sells = [s for s in plan.submits if s.side == "sell"]
+    assert len(buys) == 5
+    assert len(sells) == 5
 
 
 def test_should_replan_skips_within_interval_when_grid_alive() -> None:
