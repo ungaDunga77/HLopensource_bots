@@ -48,6 +48,7 @@ class StartupContext:
     shadow: ShadowLogger
     sz_decimals: int
     initial_account_value: float
+    unified_account: bool = False
 
 
 def _resolve_password(cfg: BaseConfig) -> str:
@@ -86,6 +87,26 @@ def _parse_account_value(state: dict[str, Any]) -> float:
     if value <= 0:
         raise StructuralError(f"accountValue not positive: {value}")
     return value
+
+
+def _parse_unified_account_value(
+    perp_state: dict[str, Any], spot_state: dict[str, Any]
+) -> float:
+    """Account value for unified accounts.
+
+    In unified mode, spot USDC total already includes margin held for perps
+    (reported in the ``hold`` field). The perp clearinghouse ``accountValue``
+    equals the held amount + unrealised PnL, so adding both double-counts.
+    The true account value is just the spot USDC total.
+    """
+    usdc_total = 0.0
+    for bal in spot_state.get("balances", []):
+        if bal.get("coin") == "USDC":
+            usdc_total = float(bal.get("total", "0"))
+            break
+    if usdc_total <= 0:
+        raise StructuralError(f"unified accountValue not positive: usdc={usdc_total}")
+    return usdc_total
 
 
 def _find_sz_decimals(meta: dict[str, Any], pair: str) -> int:
@@ -135,17 +156,22 @@ async def run_startup(cfg: BaseConfig) -> StartupContext:
     # Step 5b: account abstraction mode check.
     abstraction_mode = await client.user_abstraction_mode()
     log.info("startup step 5b: account abstraction mode=%s", abstraction_mode)
-    if abstraction_mode not in ("default", "manual"):
+    unified = abstraction_mode == "unifiedAccount"
+    if abstraction_mode not in ("default", "manual", "unifiedAccount"):
         raise StructuralError(
-            f"account is in '{abstraction_mode}' mode — bot requires 'default' or 'manual' "
-            f"(unified/portfolio mode moves balances to spotClearinghouseState, "
-            f"which user_state() cannot read). Switch to manual mode in HL UI."
+            f"account is in '{abstraction_mode}' mode — bot requires "
+            f"'default', 'manual', or 'unifiedAccount'"
         )
 
     # Step 6: clearinghouse sanity.
     state = await client.user_state()
-    account_value = _parse_account_value(state)
-    log.info("startup step 6: account_value=%.6f", account_value)
+    if unified:
+        spot_state = await client.spot_user_state()
+        account_value = _parse_unified_account_value(state, spot_state)
+        log.info("startup step 6: unified account_value=%.6f (spot USDC + perp)", account_value)
+    else:
+        account_value = _parse_account_value(state)
+        log.info("startup step 6: account_value=%.6f", account_value)
 
     # Step 7: explicit set_leverage.
     pair = cfg.strategy.pair
@@ -193,4 +219,5 @@ async def run_startup(cfg: BaseConfig) -> StartupContext:
         shadow=shadow,
         sz_decimals=sz_decimals,
         initial_account_value=account_value,
+        unified_account=unified,
     )

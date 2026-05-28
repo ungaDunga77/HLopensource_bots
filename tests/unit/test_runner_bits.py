@@ -41,7 +41,10 @@ def _submit(cloid: str, level: int = 1, side: str = "buy") -> OrderSubmit:
 @pytest.mark.asyncio
 async def test_submit_one_returns_cloid_on_success() -> None:
     c = _client_with_user_state()
-    c.place_order = AsyncMock(return_value={"status": "ok"})  # type: ignore[method-assign]
+    c.place_order = AsyncMock(return_value={  # type: ignore[method-assign]
+        "status": "ok",
+        "response": {"type": "order", "data": {"statuses": [{"resting": {"oid": 123}}]}},
+    })
     rm = RiskManager(c, baseline_equity=1000.0, max_daily_loss_pct=0.5, leverage=3)
     sub = _submit("0xaaa")
     result = await _submit_one(c, "BTC", sub, rm, HealthState())
@@ -101,7 +104,10 @@ async def test_submit_one_counts_retryable_error() -> None:
 async def test_apply_plan_cancels_then_submits() -> None:
     c = _client_with_user_state()
     c.cancel_by_cloid = AsyncMock(return_value={"status": "ok"})  # type: ignore[method-assign]
-    c.place_order = AsyncMock(return_value={"status": "ok"})  # type: ignore[method-assign]
+    c.place_order = AsyncMock(return_value={  # type: ignore[method-assign]
+        "status": "ok",
+        "response": {"type": "order", "data": {"statuses": [{"resting": {"oid": 456}}]}},
+    })
     rm = RiskManager(c, baseline_equity=1000.0, max_daily_loss_pct=0.5, leverage=3)
     plan = GridPlan(
         cancels=["0xold1", "0xold2"],

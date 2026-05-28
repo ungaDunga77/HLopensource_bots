@@ -133,8 +133,12 @@ class HLClient:
         result = await self._info_call(self._info.user_state, self.account_address)
         return dict(result)
 
+    async def spot_user_state(self) -> dict[str, Any]:
+        result = await self._info_call(self._info.spot_user_state, self.account_address)
+        return dict(result)
+
     async def user_abstraction_mode(self) -> str:
-        """Return the account abstraction mode: 'default', 'unified', or 'portfolio'."""
+        """Return the account abstraction mode: 'default', 'unifiedAccount', or 'portfolio'."""
         result = await self._info_call(
             self._raw_info_post, {"type": "userAbstraction", "user": self.account_address}
         )

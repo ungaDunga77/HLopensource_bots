@@ -164,7 +164,15 @@ async def run_round_trip(cfg: BaseConfig) -> int:
             return 1
 
         final_state = await client.user_state()
-        final_value = float((final_state.get("marginSummary") or {}).get("accountValue", "0"))
+        if ctx.unified_account:
+            spot = await client.spot_user_state()
+            final_value = 0.0
+            for bal in spot.get("balances", []):
+                if bal.get("coin") == "USDC":
+                    final_value = float(bal.get("total", "0"))
+                    break
+        else:
+            final_value = float((final_state.get("marginSummary") or {}).get("accountValue", "0"))
         delta = final_value - ctx.initial_account_value
         log.info(
             "round-trip OK: start=%.6f end=%.6f delta=%+.6f",

@@ -92,6 +92,21 @@ async def _cancel_cloid(client: HLClient, pair: str, cloid: str) -> None:
         log.warning("cancel_by_cloid %s failed: %s (%s)", cloid, e.message, e.category)
 
 
+def _order_accepted(result: dict[str, Any]) -> bool:
+    """Check if an HL order response indicates the order is resting on the book."""
+    if result.get("status") != "ok":
+        return False
+    resp = result.get("response") or {}
+    data = resp.get("data") or {}
+    statuses = data.get("statuses") or []
+    if not statuses:
+        return False
+    first = statuses[0]
+    if isinstance(first, dict) and ("resting" in first or "filled" in first):
+        return True
+    return False
+
+
 async def _submit_one(
     client: HLClient,
     pair: str,
@@ -103,7 +118,7 @@ async def _submit_one(
     if not await risk.margin_ok(action):
         return None
     try:
-        await client.place_order(
+        result = await client.place_order(
             pair,
             is_buy=(sub.side == "buy"),
             size=sub.size,
@@ -121,6 +136,10 @@ async def _submit_one(
     except AppError as e:
         log.warning("submit retryable fail: %s (%s)", e.message, e.category)
         health.errors += 1
+        return None
+    if not _order_accepted(result):
+        statuses = (result.get("response") or {}).get("data", {}).get("statuses", [])
+        log.warning("submit rejected: pair=%s side=%s statuses=%s", pair, sub.side, statuses)
         return None
     return sub.cloid
 
@@ -600,6 +619,7 @@ async def run(
         baseline_equity=ctx.initial_account_value,
         max_daily_loss_pct=cfg.risk.max_daily_loss_pct,
         leverage=cfg.strategy.leverage,
+        unified_account=ctx.unified_account,
     )
     fills_mgr = FillEventsManager(client=ctx.client)
     await fills_mgr.reconcile()

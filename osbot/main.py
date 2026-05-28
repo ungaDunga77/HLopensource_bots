@@ -99,13 +99,23 @@ async def _smoke_test(cfg: BaseConfig) -> int:
     client = HLClient(mode=cfg.mode, account_address=cfg.account_address)
     try:
         state = await client.user_state()
+        abstraction = await client.user_abstraction_mode()
     except AppError as e:
         log.error("user_state failed: %s (%s)", e.message, e.category)
         return 1
     margin = state.get("marginSummary", {}) or {}
     balance = margin.get("accountValue", "?")
+    if abstraction == "unifiedAccount":
+        try:
+            spot = await client.spot_user_state()
+            for bal in spot.get("balances", []):
+                if bal.get("coin") == "USDC":
+                    balance = float(bal.get("total", "0"))
+                    break
+        except AppError:
+            pass
     positions = state.get("assetPositions", []) or []
-    print(f"smoke-test OK: account_value={balance} positions={len(positions)}")
+    print(f"smoke-test OK: account_value={balance} positions={len(positions)} mode={abstraction}")
     return 0
 
 

@@ -42,6 +42,7 @@ class RiskManager:
         leverage: int,
         margin_buffer: float = 0.1,
         cache_ttl_s: float = 0.5,
+        unified_account: bool = False,
     ) -> None:
         self._client = client
         self.baseline_equity = baseline_equity
@@ -49,7 +50,9 @@ class RiskManager:
         self.leverage = leverage
         self.margin_buffer = margin_buffer
         self.cache_ttl_s = cache_ttl_s
+        self._unified = unified_account
         self._last_state: dict[str, Any] | None = None
+        self._last_spot_state: dict[str, Any] | None = None
         self._last_state_ts: float = 0.0
         self._last_equity: float = baseline_equity
 
@@ -64,10 +67,28 @@ class RiskManager:
         state = await self._client.user_state()
         self._last_state = state
         self._last_state_ts = now
-        margin = state.get("marginSummary") or {}
-        with contextlib.suppress(TypeError, ValueError):
-            self._last_equity = float(margin.get("accountValue", self._last_equity))
+        if self._unified:
+            self._last_spot_state = await self._client.spot_user_state()
+            self._update_unified_equity()
+        else:
+            margin = state.get("marginSummary") or {}
+            with contextlib.suppress(TypeError, ValueError):
+                self._last_equity = float(margin.get("accountValue", self._last_equity))
         return state
+
+    def _update_unified_equity(self) -> None:
+        """Best-effort equity update from cached spot state.
+
+        In unified mode, spot USDC total already includes margin held for
+        perps, so we do NOT add perp accountValue (that would double-count).
+        """
+        if self._last_spot_state is None:
+            return
+        for bal in self._last_spot_state.get("balances", []):
+            if bal.get("coin") == "USDC":
+                with contextlib.suppress(TypeError, ValueError):
+                    self._last_equity = float(bal.get("total", self._last_equity))
+                return
 
     async def precheck(self) -> None:
         state = await self._get_state()
@@ -91,12 +112,8 @@ class RiskManager:
         if action.reduce_only:
             return True
         state = await self._get_state()
-        margin = state.get("marginSummary") or {}
         try:
-            withdrawable = float(
-                state.get("withdrawable")
-                or margin.get("accountValue", "0")
-            )
+            withdrawable = self._get_withdrawable(state)
         except (TypeError, ValueError):
             return False
         notional = action.size * action.price
@@ -109,3 +126,11 @@ class RiskManager:
                 required,
             )
         return ok
+
+    def _get_withdrawable(self, state: dict[str, Any]) -> float:
+        if self._unified and self._last_spot_state is not None:
+            for token, avail in self._last_spot_state.get("tokenToAvailableAfterMaintenance", []):
+                if token == 0:
+                    return float(avail)
+        margin = state.get("marginSummary") or {}
+        return float(state.get("withdrawable") or margin.get("accountValue", "0"))
