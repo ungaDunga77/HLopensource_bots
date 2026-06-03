@@ -137,6 +137,13 @@ async def _submit_one(
         log.warning("submit retryable fail: %s (%s)", e.message, e.category)
         health.errors += 1
         return None
+    if not isinstance(result, dict):
+        # SDK returns a bare string on some error paths (e.g. min-notional);
+        # treat as a rejection instead of crashing on result.get(...).
+        log.warning("submit rejected (non-dict response): pair=%s side=%s resp=%r",
+                    pair, sub.side, result)
+        health.errors += 1
+        return None
     if not _order_accepted(result):
         statuses = (result.get("response") or {}).get("data", {}).get("statuses", [])
         log.warning("submit rejected: pair=%s side=%s statuses=%s", pair, sub.side, statuses)

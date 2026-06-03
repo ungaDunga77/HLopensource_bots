@@ -134,23 +134,35 @@ def test_grid_plan_pauses_on_trend() -> None:
     assert plan.cancels == ["0xa"]
 
 
-def test_grid_plan_bumps_to_min_notional() -> None:
-    # WEL=0.2, balance=200: per-level = $8, below $10 min → bump to $10.
-    # Position cap: max_pos = (200*0.2)/60000 = 0.000667; level_size = 0.00017.
-    # Cap allows 3 buy + 3 sell (0.00051 < 0.000667).
+def test_grid_refuses_below_min_notional_viability() -> None:
+    # WEL=0.2, balance=200, levels=5: per-level = $8 < 1.3×$10 floor. The grid
+    # must NOT bump-and-trade (that builds un-unwindable positions); it quotes
+    # nothing (cancel-only) while still cancelling any existing grid.
     g = GridStrategy(_cfg(wallet_exposure_limit=0.2), sz_decimals=5)
     m = MarketState()
     for i in range(20):
         m.sample(ts=float(i * 60), mid=60_000.0)
     plan = g.plan(
-        now=20 * 60, mid=60_000.0, market=m, balance_usd=200.0, open_grid_cloids=[]
+        now=20 * 60, mid=60_000.0, market=m, balance_usd=200.0,
+        open_grid_cloids=["cl1", "cl2"],
+    )
+    assert plan.submits == []
+    assert plan.cancels == ["cl1", "cl2"]
+
+
+def test_grid_trades_when_per_level_clears_min_notional() -> None:
+    # WEL=0.25, balance=300, levels=3: per-level = $25, well clear of the floor.
+    g = GridStrategy(_cfg(wallet_exposure_limit=0.25, grid_levels=3), sz_decimals=5)
+    m = MarketState()
+    for i in range(20):
+        m.sample(ts=float(i * 60), mid=60_000.0)
+    plan = g.plan(
+        now=20 * 60, mid=60_000.0, market=m, balance_usd=300.0, open_grid_cloids=[]
     )
     assert len(plan.submits) > 0
-    assert math.isclose(plan.submits[0].size, 0.00017, abs_tol=1e-5)
-    buys = [s for s in plan.submits if s.side == "buy"]
-    sells = [s for s in plan.submits if s.side == "sell"]
-    assert len(buys) == len(sells)
-    assert len(buys) < 5  # position cap reduces from full 5 levels
+    # every placed level must itself clear the exchange min notional
+    for s in plan.submits:
+        assert s.size * 60_000.0 >= 10.0
 
 
 def test_round_size_basic() -> None:

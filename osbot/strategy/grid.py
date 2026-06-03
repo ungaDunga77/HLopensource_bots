@@ -24,6 +24,11 @@ from osbot.strategy.tags import OrderIntent, OrderTag
 log = get_logger("osbot.grid")
 
 _MIN_SIGMA_SAMPLES = 8
+# Per-level notional must clear the exchange min-notional by this factor before we
+# trade. Headroom absorbs price drift + size rounding so a level placed at/above the
+# floor doesn't fall below it (and get rejected) before it can be reduced. Below this
+# line the grid quotes nothing rather than bump-and-trap. See lessons: min-notional trap.
+_MIN_NOTIONAL_HEADROOM = 1.3
 
 
 @dataclass
@@ -251,19 +256,31 @@ class GridStrategy:
 
         per_pair_wel = self.wallet_exposure_limit / max(n_active_pairs, 1)
         per_level_notional = (balance_usd * per_pair_wel) / self.grid_levels
-        bumped = False
-        if per_level_notional < self.min_notional_usd:
-            per_level_notional = self.min_notional_usd
-            bumped = True
-            log.warning(
-                "grid: per-level notional bumped to min $%.2f (balance=%.2f wel=%.2f levels=%d)",
-                self.min_notional_usd,
-                balance_usd,
-                self.wallet_exposure_limit,
+
+        # Viability guard: if the WEL-derived per-level notional is below the
+        # exchange min-notional floor (with headroom), DO NOT bump-and-trade.
+        # Bumping oversizes the grid past the position cap and builds positions
+        # that cannot be unwound — reduce orders fall below min notional, get
+        # rejected, and the bot bleeds to the daily-loss halt. Quote nothing
+        # (cancel-only) until capital is adequate. See lessons: min-notional trap.
+        min_viable = self.min_notional_usd * _MIN_NOTIONAL_HEADROOM
+        if per_level_notional < min_viable:
+            log.error(
+                "grid: per-level $%.2f < %.1fx min notional $%.2f "
+                "(balance=%.2f wel=%.3f pairs=%d levels=%d) — capital too small, "
+                "quoting nothing (cancel-only)",
+                per_level_notional, _MIN_NOTIONAL_HEADROOM, self.min_notional_usd,
+                balance_usd, self.wallet_exposure_limit, n_active_pairs,
                 self.grid_levels,
             )
+            return plan  # cancel-only
 
         level_size = _round_size(per_level_notional, mid, self.sz_decimals)
+        # Size rounding can drop the notional below the floor even when the
+        # target was above it; bump up one tick so the order is never rejected.
+        tick = 10.0 ** -self.sz_decimals
+        if level_size > 0 and level_size * mid < self.min_notional_usd:
+            level_size = round(level_size + tick, self.sz_decimals)
         if level_size <= 0:
             log.error("grid: level size rounded to 0; skipping submits")
             return plan
@@ -336,13 +353,12 @@ class GridStrategy:
 
         log.info(
             "grid plan: sigma=%.1fbps slope=%.1fbps range=%.1fbps spacing=%.1fbps"
-            " size=%s bumped=%s skew=%.2fbps submits=%d cancels=%d",
+            " size=%s skew=%.2fbps submits=%d cancels=%d",
             sigma_bps,
             slope_bps,
             range_bps,
             spacing_bps,
             level_size,
-            bumped,
             skew_frac * 10_000.0,
             len(plan.submits),
             len(plan.cancels),
