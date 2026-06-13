@@ -1,0 +1,49 @@
+# HIP-3 Testnet — validation run mirroring the mainnet small-capital config.
+#
+# Purpose: prove the post-trap fixes behave over a sustained run (viability guard,
+# reconciliation, no crashes) and get a rough net-of-fees edge read on the BTC/ETH
+# 3-level grid BEFORE risking more real money. Testnet fills/spreads differ from
+# mainnet, so treat the PnL as indicative, not exact.
+#
+# Secret-free: auth from HYPERLIQUID_TESTNET_PRIVATE_KEY in .env; account_address
+# derived from the signing wallet (master-key mode, = 0x3BaC...458C).
+#
+# Strategy intentionally mirrors configs/hip3-mainnet.yaml so we measure the same
+# thing. Testnet faucet typically funds ~1000 USDC, so the min-notional viability
+# guard won't bind here — that's fine; we're testing mechanics + edge, not sizing.
+
+mode: testnet
+
+strategy:
+  pair: BTC
+  leverage: 3
+  grid_levels: 3
+  wallet_exposure_limit: 0.25
+  range_bps_min: 50
+  tp_pct: 0.002
+  sl_pct: 0.02
+  exit_ttl_s: 43200  # 12h
+  sl_consecutive_breaches: 2
+  inventory_skew_gamma: 500.0
+  inventory_skew_horizon_s: 300.0
+  pair_overrides:
+    ETH:
+      range_bps_min: 40
+
+risk:
+  max_daily_loss_pct: 0.03
+  min_notional_usd: 10.0
+
+observability:
+  shadow_db_path: data/hip3-testnet-shadow.sqlite
+  health_port: 8081   # distinct from mainnet's 8080 to avoid port clash
+
+forager:
+  enabled: true
+  candidate_pairs:
+    - BTC
+    - ETH
+  top_n: 1
+  rotate_every_s: 3600
+  log_range_window_min: 16
+  min_volume_usd_24h: 1000.0
