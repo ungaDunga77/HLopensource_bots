@@ -4,14 +4,17 @@
 
 Before starting the bot on mainnet:
 
-- [ ] Config copied: `cp docs/hip3-mainnet.yaml.template secrets/hip3-mainnet.yaml`
-- [ ] `account_address` set to your mainnet wallet
-- [ ] `keyfile_path` points to your mainnet keyfile
-- [ ] `confirm_mainnet: true` set (bot refuses to start without this)
-- [ ] `OSBOT_KEYFILE_PASSWORD` env var set (or `keyfile_password` in config)
-- [ ] Dry-run passes: `python -m osbot --config secrets/hip3-mainnet.yaml --dry-run`
-- [ ] Smoke-test passes: `python -m osbot --config secrets/hip3-mainnet.yaml --smoke-test`
-- [ ] Account has sufficient USDC deposited (minimum $300 for 3-pair micro deployment)
+- [ ] Using the tracked config `configs/hip3-mainnet.yaml` (version-controlled, no secrets)
+- [ ] `HYPERLIQUID_MAINNET_PRIVATE_KEY` set in `.env` — primary auth; `account_address`
+      is derived from it (master-key mode). For agent-wallet mode set `OSBOT_ACCOUNT_ADDRESS`
+      to the funded account instead.
+- [ ] `confirm_mainnet: true` is set in the config (already true; bot refuses to start without it)
+- [ ] Keyfile fallback only: if not using the env key, set `OSBOT_KEYFILE_PASSWORD` and
+      ensure `keyfile_path` points to your mainnet keyfile
+- [ ] Dry-run passes: `python -m osbot --config configs/hip3-mainnet.yaml --dry-run`
+- [ ] Smoke-test passes: `python -m osbot --config configs/hip3-mainnet.yaml --smoke-test`
+      (prints resolved balance + position count — confirms the derived address is correct)
+- [ ] Account has sufficient USDC deposited (viable from ~$180 with the current 1-pair config)
 - [ ] No stale positions or open orders from prior sessions (smoke-test prints position count)
 - [ ] Current time is within US market hours (Mon–Fri, 09:30–16:00 ET ideally)
 
@@ -19,16 +22,17 @@ Before starting the bot on mainnet:
 
 ```bash
 source venv/bin/activate
-export OSBOT_KEYFILE_PASSWORD='...'
+# Auth from .env (HYPERLIQUID_MAINNET_PRIVATE_KEY); export it if not auto-loaded:
+set -a; source .env; set +a
 
 # Dry-run first — verify config loads and looks right
-python -m osbot --config secrets/hip3-mainnet.yaml --dry-run
+python -m osbot --config configs/hip3-mainnet.yaml --dry-run
 
-# Smoke-test — verify connectivity and account balance
-python -m osbot --config secrets/hip3-mainnet.yaml --smoke-test
+# Smoke-test — verify connectivity and account balance (confirms derived address)
+python -m osbot --config configs/hip3-mainnet.yaml --smoke-test
 
 # Launch
-nohup python -m osbot --config secrets/hip3-mainnet.yaml --run \
+nohup python -m osbot --config configs/hip3-mainnet.yaml --run \
   > data/hip3-mainnet-$(date +%Y%m%d-%H%M%S).log 2>&1 &
 echo $! > data/hip3-mainnet.pid
 ```
@@ -201,19 +205,20 @@ Not affected by market hours. If you add crypto pairs to the forager, they trade
 
 ## 7. Position sizing and limits
 
-From `hip3-mainnet.yaml.template`:
+From `configs/hip3-mainnet.yaml` (small-capital rework, 2026-06-03):
 
 | Parameter | Value | Effect |
 |-----------|-------|--------|
-| `leverage` | 3× (MSTR: 2×) | Max position = 3× allocated capital per pair |
-| `wallet_exposure_limit` | 0.15 | ~$150 total exposure per pair on $1000 account |
+| `leverage` | 3× | Max position = 3× allocated capital per pair |
+| `wallet_exposure_limit` | 0.25 | Position cap = 25% of balance (undivided — 1 active pair) |
 | `max_daily_loss_pct` | 0.03 | Bot halts if session equity drops 3% from start |
-| `min_notional_usd` | 10.0 | HL minimum; orders below this are bumped up |
-| `grid_levels` | 5 (MSTR: 3) | Orders per side of the grid |
+| `min_notional_usd` | 10.0 | HL minimum. Per-level size below 1.3× this → grid **quotes nothing** (cancel-only), never bumps |
+| `grid_levels` | 3 | Orders per side of the grid |
+| `forager.top_n` | 1 | One active pair (BTC or ETH) → WEL is not split |
 
-With $1000 account and 3 pairs: each pair gets ~$333 allocation, 0.15 WEL = ~$50 max position per pair, ~$150 total exposure across all pairs.
+**Minimum viable capital** ≈ `min_notional × grid_levels × n_active_pairs / WEL` = `10 × 3 × 1 / 0.25` = **$120 floor**, healthy from ~$180. Below the floor the viability guard keeps the bot flat instead of building an un-unwindable position (see docs/lessons.md — grid min-notional trap).
 
-**Worst-case scenario:** all 3 pairs hit SL simultaneously at 2% each = ~$3 loss per pair = $9 total (~0.9% of account). Well within the 3% daily limit.
+At $180: per-level $15, position cap $45 notional (~$15 margin at 3×, 8% of equity). **Worst-case:** position hits SL at 2% = ~$0.90 loss, well within the 3% daily limit. Re-expand to multi-pair / 5-level / equity perps only above ~$1k.
 
 ## 8. Restarting after a crash
 

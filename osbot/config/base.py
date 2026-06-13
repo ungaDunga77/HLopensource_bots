@@ -86,9 +86,14 @@ class BaseConfig(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
 
     mode: Literal["testnet", "mainnet"]
-    account_address: str
-    keyfile_path: str
-    keyfile_password: SecretStr
+    # All three are optional so a config can live in version control with no
+    # secrets. account_address, when omitted, is derived at runtime from the
+    # signing wallet (master-key mode); see startup.resolve_account_address.
+    # keyfile_path/password are only the fallback auth path — the primary path
+    # is the HYPERLIQUID_{MAINNET,TESTNET}_PRIVATE_KEY env var.
+    account_address: str | None = None
+    keyfile_path: str = ""
+    keyfile_password: SecretStr = SecretStr("")
     strategy: StrategyConfig = Field(default_factory=StrategyConfig)
     risk: RiskConfig = Field(default_factory=RiskConfig)
     forager: ForagerConfig = Field(default_factory=ForagerConfig)

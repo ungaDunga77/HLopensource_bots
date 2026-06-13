@@ -58,6 +58,26 @@ keyfile_password: "pw"
     assert isinstance(cfg, MainnetConfig)
 
 
+def test_config_loads_without_secrets(tmp_path: Path) -> None:
+    # A version-controlled config carries no secrets; auth comes from env at
+    # runtime and account_address is derived from the signing wallet.
+    path = _write(
+        tmp_path,
+        """
+mode: mainnet
+confirm_mainnet: true
+strategy:
+  pair: BTC
+""",
+    )
+    cfg = load_config(path)
+    assert isinstance(cfg, MainnetConfig)
+    assert cfg.account_address is None
+    assert cfg.keyfile_path == ""
+    assert cfg.keyfile_password.get_secret_value() == ""
+    assert cfg.strategy.pair == "BTC"
+
+
 def test_secret_never_in_repr(tmp_path: Path) -> None:
     path = _write(
         tmp_path,

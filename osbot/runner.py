@@ -684,7 +684,7 @@ async def run(
     if enable_ws:
         perp_dexes = sorted({d or "" for d in active_dexes})
         ws = WsSubscriber(
-            mode=cfg.mode, account_address=cfg.account_address,
+            mode=cfg.mode, account_address=ctx.client.account_address,
             perp_dexes=perp_dexes,
         )
         for dex_id in active_dexes:

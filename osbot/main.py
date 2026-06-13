@@ -12,35 +12,25 @@ import asyncio
 import sys
 from pathlib import Path
 
-from pydantic import SecretStr
-
 from osbot.config import BaseConfig, load_config
 from osbot.connector.errors import AppError
 from osbot.connector.hl_client import HLClient
 from osbot.observability import get_logger
 from osbot.roundtrip import run_round_trip
 from osbot.runner import run as run_loop
+from osbot.startup import _derive_wallet, redact_addr, resolve_account_address
 
 log = get_logger("osbot.main")
 
 
-_MIN_ADDR_LEN_FOR_TRUNCATION = 10
-
-
-def _redact_addr(addr: str) -> str:
-    if len(addr) < _MIN_ADDR_LEN_FOR_TRUNCATION:
-        return "***"
-    return f"{addr[:6]}...{addr[-4:]}"
-
-
 def _summarize(cfg: BaseConfig) -> str:
-    pw_set = isinstance(cfg.keyfile_password, SecretStr)
+    pw_set = bool(cfg.keyfile_password.get_secret_value())
     lines = [
         "osbot config summary:",
         f"  mode: {cfg.mode}",
-        f"  account_address: {_redact_addr(cfg.account_address)}",
-        f"  keyfile_path: {cfg.keyfile_path}",
-        f"  keyfile_password: {'<set>' if pw_set else '<missing>'}",
+        f"  account_address: {redact_addr(cfg.account_address)}",
+        f"  keyfile_path: {cfg.keyfile_path or '<unset>'}",
+        f"  keyfile_password: {'<set>' if pw_set else '<unset>'}",
         "  strategy:",
         f"    pair: {cfg.strategy.pair}",
         f"    leverage: {cfg.strategy.leverage}",
@@ -96,7 +86,10 @@ def _build_parser() -> argparse.ArgumentParser:
 
 
 async def _smoke_test(cfg: BaseConfig) -> int:
-    client = HLClient(mode=cfg.mode, account_address=cfg.account_address)
+    # Read-only, but resolve the address the same way the live path does: explicit
+    # config value, else derive from the signing wallet (needs the env key).
+    address = cfg.account_address or resolve_account_address(cfg, _derive_wallet(cfg))
+    client = HLClient(mode=cfg.mode, account_address=address)
     try:
         state = await client.user_state()
         abstraction = await client.user_abstraction_mode()

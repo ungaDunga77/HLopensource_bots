@@ -42,6 +42,17 @@ KEYFILE_PASSWORD_ENV = "OSBOT_KEYFILE_PASSWORD"
 PRIVATE_KEY_ENV_MAINNET = "HYPERLIQUID_MAINNET_PRIVATE_KEY"
 PRIVATE_KEY_ENV_TESTNET = "HYPERLIQUID_TESTNET_PRIVATE_KEY"
 
+_MIN_ADDR_LEN_FOR_TRUNCATION = 10
+
+
+def redact_addr(addr: str | None) -> str:
+    """Truncate an address for logging: 0xABCD...1234. Never log full addresses."""
+    if not addr:
+        return "<derived from private key>"
+    if len(addr) < _MIN_ADDR_LEN_FOR_TRUNCATION:
+        return "***"
+    return f"{addr[:6]}...{addr[-4:]}"
+
 
 @dataclass
 class StartupContext:
@@ -82,11 +93,26 @@ def _derive_wallet(cfg: BaseConfig) -> LocalAccount:
             key_bytes = b"\x00" * len(key_bytes)
             del key_bytes
         log.info("startup step 4: wallet from keyfile %s", cfg.keyfile_path)
-    if wallet.address.lower() != cfg.account_address.lower():
+    if cfg.account_address is None:
+        log.info("startup step 4: wallet derived; account_address from signing wallet")
+    elif wallet.address.lower() != cfg.account_address.lower():
         log.info("startup step 4: signing wallet differs from account_address (agent mode)")
     else:
         log.info("startup step 4: wallet derived (master key mode)")
     return wallet
+
+
+def resolve_account_address(cfg: BaseConfig, wallet: LocalAccount) -> str:
+    """The address to query state for.
+
+    An explicit ``account_address`` in config wins — required for agent-wallet
+    mode, where the signing wallet differs from the funded account. When the
+    config omits it (the secret-free, version-controlled case), fall back to the
+    signing wallet's own address (master-key mode).
+    """
+    if cfg.account_address:
+        return cfg.account_address
+    return wallet.address
 
 
 def _parse_account_value(state: dict[str, Any]) -> float:
@@ -154,15 +180,18 @@ async def run_startup(cfg: BaseConfig) -> StartupContext:
     # Steps 3+4: decrypt + derive wallet.
     wallet = _derive_wallet(cfg)
 
-    # Step 5: HLClient with explicit account_address.
-    # Derive perp dex list from forager candidates so the SDK registers xyz pairs.
+    # Step 5: HLClient with explicit account_address (resolved from config or,
+    # when omitted, the signing wallet). Derive perp dex list from forager
+    # candidates so the SDK registers xyz pairs.
+    account_address = resolve_account_address(cfg, wallet)
     all_pairs = list(cfg.forager.candidate_pairs) if cfg.forager.enabled else [cfg.strategy.pair]
     perp_dexes = sorted({dex_for_pair(p) or "" for p in all_pairs})
     client = HLClient(
-        mode=cfg.mode, account_address=cfg.account_address, wallet=wallet,
+        mode=cfg.mode, account_address=account_address, wallet=wallet,
         perp_dexes=perp_dexes,
     )
-    log.info("startup step 5: HLClient ready (perp_dexes=%s)", perp_dexes)
+    log.info("startup step 5: HLClient ready for %s (perp_dexes=%s)",
+             redact_addr(account_address), perp_dexes)
 
     # Step 5b: account abstraction mode check.
     abstraction_mode = await client.user_abstraction_mode()
