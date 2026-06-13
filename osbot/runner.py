@@ -42,7 +42,13 @@ from osbot.state.fills import FillEventsManager
 from osbot.strategy.exit_manager import ExitManager
 from osbot.strategy.exits import TripleBarrier
 from osbot.strategy.grid import GridPlan, GridStrategy, MarketState, OrderSubmit
-from osbot.strategy.market_hours import Session, classify, dex_for_pair, is_equity_perp, should_flatten_for_weekend
+from osbot.strategy.market_hours import (
+    Session,
+    classify,
+    dex_for_pair,
+    is_equity_perp,
+    should_flatten_for_weekend,
+)
 from osbot.strategy.selection import ForagerSelector, prepare_forager_pairs
 
 log = get_logger("osbot.runner")
@@ -102,9 +108,7 @@ def _order_accepted(result: dict[str, Any]) -> bool:
     if not statuses:
         return False
     first = statuses[0]
-    if isinstance(first, dict) and ("resting" in first or "filled" in first):
-        return True
-    return False
+    return isinstance(first, dict) and ("resting" in first or "filled" in first)
 
 
 async def _submit_one(
@@ -254,7 +258,9 @@ def _build_pair_runtime(
     triple_barrier = TripleBarrier(
         sl_pct=(ovr.sl_pct if ovr and ovr.sl_pct is not None else cfg.strategy.sl_pct),
         tp_pct=(ovr.tp_pct if ovr and ovr.tp_pct is not None else cfg.strategy.tp_pct),
-        ttl_s=float(ovr.exit_ttl_s if ovr and ovr.exit_ttl_s is not None else cfg.strategy.exit_ttl_s),
+        ttl_s=float(
+            ovr.exit_ttl_s if ovr and ovr.exit_ttl_s is not None else cfg.strategy.exit_ttl_s
+        ),
         consecutive_breaches_required=cfg.strategy.sl_consecutive_breaches,
     )
     grid = GridStrategy(cfg, sz_decimals, strategy_id=strategy_id, overrides=ovr)
@@ -285,7 +291,7 @@ def _extract_signed_szi(user_state: dict[str, Any], pair: str) -> float:
     return 0.0
 
 
-async def _tick_pair(
+async def _tick_pair(  # noqa: PLR0912 — inherent branching over session/forager/exit states
     pr: _PairRuntime,
     *,
     ctx: StartupContext,
@@ -496,7 +502,9 @@ async def _tick(  # noqa: PLR0912
                     meta_ctxs = await client.meta_and_asset_ctxs(dex=dex_id)
                     selector.update_asset_ctxs(meta_ctxs[0].get("universe", []), meta_ctxs[1])
                 except AppError as e:
-                    log.warning("forager: meta_and_asset_ctxs(dex=%s) failed: %s", dex_id, e.message)
+                    log.warning(
+                        "forager: meta_and_asset_ctxs(dex=%s) failed: %s", dex_id, e.message
+                    )
         last_rot = state.get("last_rotate_ts", 0.0)
         if (now - last_rot) >= cfg.forager.rotate_every_s:
             rotated = await _rotate_forager(

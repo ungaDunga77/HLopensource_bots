@@ -45,10 +45,14 @@ class Session(Enum):
     CLOSED = "closed"
 
 
+_FRIDAY = 4  # datetime.weekday(): Monday=0 .. Friday=4 .. Sunday=6
+_SATURDAY = 5
+
+
 def classify(ts: float) -> Session:
     """Classify a Unix timestamp into a US equity market session."""
     dt = datetime.fromtimestamp(ts, tz=_ET)
-    if dt.weekday() >= 5:  # Saturday=5, Sunday=6
+    if dt.weekday() >= _SATURDAY:  # weekend
         return Session.CLOSED
     if dt.date() in _HOLIDAYS_2026:
         return Session.CLOSED
@@ -61,13 +65,13 @@ def classify(ts: float) -> Session:
 
 
 def should_flatten_for_weekend(ts: float) -> bool:
-    """True during the Friday flatten window (15:55–16:00 ET).
+    """True during the Friday flatten window (15:55-16:00 ET).
 
     Gives the runner 5 minutes to market-close all equity perp positions
     before the weekend CLOSED window begins at 16:00 ET.
     """
     dt = datetime.fromtimestamp(ts, tz=_ET)
-    if dt.weekday() != 4:  # Friday only
+    if dt.weekday() != _FRIDAY:  # Friday only
         return False
     t = dt.time()
     return time(15, 55) <= t < time(16, 0)

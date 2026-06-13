@@ -214,7 +214,7 @@ class GridStrategy:
         # fills consuming the grid, not because we intentionally paused.
         return not self._last_plan_was_paused
 
-    def plan(
+    def plan(  # noqa: PLR0915 — sequential grid builder; clearer flat than fragmented
         self,
         *,
         now: float,
@@ -294,8 +294,12 @@ class GridStrategy:
             room_buy = max_position_coin + abs(position_signed_szi)
             room_sell = max(max_position_coin - abs(position_signed_szi), 0.0)
         _tol = level_size * 0.01
-        max_buy_levels = min(self.grid_levels, int((room_buy + _tol) / level_size)) if level_size > 0 else 0
-        max_sell_levels = min(self.grid_levels, int((room_sell + _tol) / level_size)) if level_size > 0 else 0
+        max_buy_levels = (
+            min(self.grid_levels, int((room_buy + _tol) / level_size)) if level_size > 0 else 0
+        )
+        max_sell_levels = (
+            min(self.grid_levels, int((room_sell + _tol) / level_size)) if level_size > 0 else 0
+        )
         capped_buys = max_buy_levels < self.grid_levels
         capped_sells = max_sell_levels < self.grid_levels
         if capped_buys or capped_sells:

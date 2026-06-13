@@ -172,7 +172,10 @@ async def prepare_forager_pairs(
     valid: dict[str, int] = {}
     for pair in candidates:
         if pair not in universe:
-            log.warning("forager: candidate %s not in HL universe (dex=%s); dropping", pair, dex_for_pair(pair))
+            log.warning(
+                "forager: candidate %s not in HL universe (dex=%s); dropping",
+                pair, dex_for_pair(pair),
+            )
             continue
         valid[pair] = universe[pair]
     if not valid:
@@ -180,8 +183,9 @@ async def prepare_forager_pairs(
     ovr = pair_overrides or {}
     for pair in valid:
         pair_lev = leverage
-        if pair in ovr and ovr[pair].leverage is not None:
-            pair_lev = ovr[pair].leverage
+        ovr_lev = ovr[pair].leverage if pair in ovr else None
+        if ovr_lev is not None:
+            pair_lev = ovr_lev
         try:
             await client.set_leverage(pair, pair_lev, is_cross=False)
         except AppError as e:
