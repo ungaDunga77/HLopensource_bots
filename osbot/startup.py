@@ -197,10 +197,12 @@ async def run_startup(cfg: BaseConfig) -> StartupContext:
     abstraction_mode = await client.user_abstraction_mode()
     log.info("startup step 5b: account abstraction mode=%s", abstraction_mode)
     unified = abstraction_mode == "unifiedAccount"
-    if abstraction_mode not in ("default", "manual", "unifiedAccount"):
+    # 'disabled' is a plain account with no abstraction (seen on testnet) — treat
+    # it like 'default'/'manual': non-unified, perp collateral sizing.
+    if abstraction_mode not in ("default", "manual", "disabled", "unifiedAccount"):
         raise StructuralError(
             f"account is in '{abstraction_mode}' mode — bot requires "
-            f"'default', 'manual', or 'unifiedAccount'"
+            f"'default', 'manual', 'disabled', or 'unifiedAccount'"
         )
 
     # Step 6: clearinghouse sanity.
