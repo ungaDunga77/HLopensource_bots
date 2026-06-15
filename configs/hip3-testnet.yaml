@@ -29,6 +29,8 @@ strategy:
   pair_overrides:
     ETH:
       range_bps_min: 40
+    SOL:
+      range_bps_min: 40  # SOL 1m vol (~7.6bps) ~ ETH (~6.4); match its tighter grid, not BTC's 50
 
 risk:
   max_daily_loss_pct: 0.03
@@ -43,6 +45,7 @@ forager:
   candidate_pairs:
     - BTC
     - ETH
+    - SOL  # added 2026-06-14: best untested liquid candidate (see docs/coin-selection-analysis.md)
   top_n: 1
   rotate_every_s: 3600
   log_range_window_min: 16
