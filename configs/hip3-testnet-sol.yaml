@@ -1,0 +1,45 @@
+# HIP-3 Testnet — SOL-ONLY soak window.
+#
+# Purpose: actually test SOL on the grid. The canonical configs/hip3-testnet.yaml
+# lists [BTC, ETH, SOL] but with top_n=1 + a volume-weighted forager score, ETH/BTC
+# always win the single slot and SOL never trades (0 fills over ~10h, 2026-06-14→15).
+# This config restricts the forager to SOL so it is always selected.
+#
+# Identical strategy params to hip3-testnet.yaml otherwise, so SOL's net-of-fees edge
+# is directly comparable to the ETH baseline already in the shared shadow DB
+# (fills are coin- and time-tagged; the SOL-only window starts at this restart).
+#
+# Secret-free: auth from HYPERLIQUID_TESTNET_PRIVATE_KEY in .env (launched with the
+# mainnet key via inline override). Account derived from the signing wallet (0x0d3B).
+
+mode: testnet
+
+strategy:
+  pair: SOL
+  leverage: 3
+  grid_levels: 3
+  wallet_exposure_limit: 0.25
+  range_bps_min: 40   # SOL 1m vol (~7.6bps) ~ ETH; tighter grid than BTC's 50
+  tp_pct: 0.002
+  sl_pct: 0.02
+  exit_ttl_s: 43200  # 12h
+  sl_consecutive_breaches: 2
+  inventory_skew_gamma: 500.0
+  inventory_skew_horizon_s: 300.0
+
+risk:
+  max_daily_loss_pct: 0.03
+  min_notional_usd: 10.0
+
+observability:
+  shadow_db_path: data/hip3-testnet-shadow.sqlite  # shared — keeps ETH baseline for comparison
+  health_port: 8081
+
+forager:
+  enabled: true
+  candidate_pairs:
+    - SOL          # SOL-only: forces selection regardless of volume score
+  top_n: 1
+  rotate_every_s: 3600
+  log_range_window_min: 16
+  min_volume_usd_24h: 1000.0  # testnet SOL ~$311k/24h — clears easily
