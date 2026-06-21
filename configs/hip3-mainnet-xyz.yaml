@@ -1,0 +1,65 @@
+# HIP-3 Mainnet — xyz EQUITY PERPS profit-gate deployment (NVDA / TSLA / MSTR).
+#
+# THIS IS THE ACTUAL PROFITABILITY BET. Rationale (see docs/runbook.md §"xyz
+# profit-gate" and the 2026-06-21 analysis):
+#   - Maker fee is ~1.5 bps (3 bps/RT); the -0.003% rebate needs $500M+/14d volume,
+#     UNREACHABLE at micro scale — so profit requires gross edge > ~3 bps/RT.
+#   - SOL/BTC/ETH (liquid majors) have gross edge ~0 against sophisticated MMs.
+#   - xyz equity perps have spreads 5.3-36.5x BTC (market-survey-verdict.md): NVDA
+#     1.5bps/11.8x, TSLA 0.68bps/5.3x, MSTR 3.5bps/27x. Wide enough that captured
+#     edge CAN clear the 3 bps/RT fee.
+#   - RISK (unmeasured): the survey found "equal turnover, wider quotes" — MMs there
+#     requote just as fast, so adverse selection is unknown. testnet xyz has no
+#     counterparties, so this is the ONE thing only a small real-money trial answers.
+#
+# Mechanics carried from the validated SOL/BTC work:
+#   v2 stop:  sl_pct 0.0065 (65bps) sits outside the 50bps grid range — catches
+#             trend tails without whipsawing intra-grid swings.
+#   v4 fees:  tp_pct=0.1 -> SL-only barrier (grid maker levels take profits);
+#             post_only=true -> ALO quotes never pay taker.
+#   Weekend/market-hours flatten is automatic for equity perps (is_equity_perp).
+#
+# DEPLOY: manual, per the testnet-only-for-automation rule. Follow docs/runbook.md.
+#   Micro size ($300-600). Funding is persistently +13-20% APY on these names, so a
+#   short inventory lean EARNS funding, a long lean PAYS it — keep the grid neutral.
+
+mode: mainnet
+confirm_mainnet: true               # explicit opt-in; inert without a mainnet key in env
+keyfile_path: secrets/mainnet.keyfile
+
+strategy:
+  pair: NVDA
+  leverage: 3
+  grid_levels: 3
+  wallet_exposure_limit: 0.25
+  range_bps_min: 50
+  tp_pct: 0.1            # v4: SL-only barrier (grid maker sells take profits)
+  sl_pct: 0.0065        # v2: 65bps stop, just outside the 50bps grid range
+  exit_ttl_s: 43200     # 12h — also bounds overnight gap exposure
+  sl_consecutive_breaches: 2
+  inventory_skew_gamma: 500.0
+  inventory_skew_horizon_s: 300.0
+  post_only: true       # v4: ALO grid quotes
+  pair_overrides:
+    MSTR:
+      range_bps_min: 60   # widest-spread / thinnest book — quote a touch wider
+      sl_pct: 0.0075
+
+risk:
+  max_daily_loss_pct: 0.03
+  min_notional_usd: 10.0
+
+observability:
+  shadow_db_path: data/hip3-mainnet-xyz-shadow.sqlite
+  health_port: 8080
+
+forager:
+  enabled: true
+  candidate_pairs:        # survey top picks; forager scores spread x depth x volume
+    - NVDA                #   NVDA = best overall (11.8x spread, $169K depth, $115M vol)
+    - TSLA                #   TSLA = tightest of the three but most liquid after NVDA
+    - MSTR                #   MSTR = widest spread, thinnest book (60bps override above)
+  top_n: 1                # undivided WEL at micro capital; raise to 2-3 above ~$1k
+  rotate_every_s: 3600
+  log_range_window_min: 16
+  min_volume_usd_24h: 1000000.0   # equity perps do $8M-$115M/day; gate out a dead book

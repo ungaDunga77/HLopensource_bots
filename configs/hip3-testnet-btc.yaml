@@ -1,0 +1,59 @@
+# HIP-3 Testnet — BTC/ETH grid with v2 stop + v4 fee discipline.
+#
+# WHY: the SOL stop-loss A/B (configs/hip3-testnet-sol-stop.yaml) proved the 55bps
+# stop kills the whipsaw and beats the no-stop control, but SOL stays net-negative
+# because its gross edge (~+0.5 bps/fill) is below the ~1.5 bps maker fee. SOL was
+# the KNOWN-WORST coin (129h soak: SOL -$13.10 vs BTC +$23.69). This config pivots
+# the mechanics onto BTC/ETH — the coins that actually have positive gross edge on
+# testnet — to validate that the stop + fee discipline generalize. This is a
+# MECHANICS-validation run, not the profit answer (testnet != mainnet; the real
+# profit bet is mainnet xyz perps, see configs/hip3-mainnet-xyz.yaml).
+#
+# v2 stop:   sl_pct sits OUTSIDE the grid range (BTC range 50bps -> 65bps stop;
+#            ETH range 40bps -> 55bps stop) so it catches trend tails, not the
+#            intra-grid mean-reversion swings a tighter stop whipsaws on.
+# v4 fees:   tp_pct=0.1 makes the TripleBarrier effectively SL-ONLY (the grid's own
+#            maker sell levels take profits, instead of the ExitManager closing as
+#            taker); post_only=true makes every grid quote ALO so entries never
+#            pay taker. Only the SL flatten crosses (market_close).
+#
+# Secret-free: testnet mode, but signs with the funded 0x0d3B account via the
+# mainnet-key override at launch (the .env testnet key is a different empty wallet).
+
+mode: testnet
+
+strategy:
+  pair: BTC
+  leverage: 3
+  grid_levels: 3
+  wallet_exposure_limit: 0.25
+  range_bps_min: 50
+  tp_pct: 0.1            # v4: effectively disables the ExitManager TP -> SL-only barrier
+  sl_pct: 0.0065        # v2: 65bps stop, just outside BTC's 50bps grid range
+  exit_ttl_s: 43200     # 12h
+  sl_consecutive_breaches: 2
+  inventory_skew_gamma: 500.0
+  inventory_skew_horizon_s: 300.0
+  post_only: true       # v4: ALO grid quotes, never pay taker on entries
+  pair_overrides:
+    ETH:
+      range_bps_min: 40
+      sl_pct: 0.0055    # 55bps stop, just outside ETH's 40bps grid range
+
+risk:
+  max_daily_loss_pct: 0.03
+  min_notional_usd: 10.0
+
+observability:
+  shadow_db_path: data/hip3-testnet-shadow.sqlite  # shared; BTC/ETH fills are coin+time tagged
+  health_port: 8081
+
+forager:
+  enabled: true
+  candidate_pairs:
+    - BTC
+    - ETH
+  top_n: 1
+  rotate_every_s: 3600
+  log_range_window_min: 16
+  min_volume_usd_24h: 1000.0

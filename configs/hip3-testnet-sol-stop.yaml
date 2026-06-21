@@ -1,0 +1,60 @@
+# HIP-3 Testnet — SOL soak, TREATMENT arm: tight inventory stop.
+#
+# Before/after experiment (single testnet wallet, so not a simultaneous A/B).
+# CONTROL = configs/hip3-testnet-sol.yaml (sl_pct 0.02 = 200 bps, effectively no
+# stop) — its ~149 round-trips already in the shared shadow DB are the baseline:
+# 68% win rate, net ~-3 bps/fill, all losses in the tail (worst RT -199 bps).
+#
+# Hypothesis (from a replay of the stop against the baseline fills): capping
+# adverse inventory excursion at ~25 bps flips gross from -$0.50 to +$1.4 and net
+# from ~-$1.3 to ~+$0.4. Mechanism is event-observable: each SL firing is a
+# directly-measured tail-cut (position flattened at -25 bps instead of riding to
+# -100+), so the before/after is regime-robust for THIS change.
+#
+# EXACTLY ONE parameter differs from the control: sl_pct 0.02 -> 0.0025.
+# Everything else (grid_levels, range_bps_min, skew, tp, ttl, breaches) is held
+# identical so the lift is attributable to the stop alone. Levers #2-4 (vol-scaled
+# spacing via lower range_bps_min, stronger skew, post-only) are a follow-on arm
+# once the stop is confirmed.
+#
+# Secret-free: auth from HYPERLIQUID_TESTNET_PRIVATE_KEY in .env. Account 0x0d3B.
+
+mode: testnet
+
+strategy:
+  pair: SOL
+  leverage: 3
+  grid_levels: 3
+  wallet_exposure_limit: 0.25
+  range_bps_min: 40
+  tp_pct: 0.002
+  sl_pct: 0.0055   # TREATMENT v2: 55 bps inventory stop. v1 was 0.0025 (25 bps) but
+                   # LIVE 2026-06-17 showed it whipsawed — 42% stop rate in a CALM
+                   # ranging market because 25 bps sits INSIDE the 40 bps grid range,
+                   # firing before the grid's own mean-reversion can play out (the
+                   # "cut winners" failure the replay couldn't see). 55 bps sits just
+                   # OUTSIDE the grid range so it only catches true trend breakouts,
+                   # not intra-grid swings. Replay showed 50 bps still flips gross +.
+                   # Fires reduce-only market_close via TripleBarrier/ExitManager,
+                   # which runs every tick independent of the grid trend-pause.
+  exit_ttl_s: 43200  # 12h
+  sl_consecutive_breaches: 2   # held = control: 2-tick (~2s) persistence vs whipsaw
+  inventory_skew_gamma: 500.0
+  inventory_skew_horizon_s: 300.0
+
+risk:
+  max_daily_loss_pct: 0.03
+  min_notional_usd: 10.0
+
+observability:
+  shadow_db_path: data/hip3-testnet-shadow.sqlite  # shared — same DB; split before/after by cutover ts
+  health_port: 8081
+
+forager:
+  enabled: true
+  candidate_pairs:
+    - SOL
+  top_n: 1
+  rotate_every_s: 3600
+  log_range_window_min: 16
+  min_volume_usd_24h: 1000.0

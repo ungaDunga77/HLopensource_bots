@@ -37,6 +37,10 @@ class StrategyConfig(BaseModel):
     # symmetric around mid. Source: evaluations/avellaneda-mm-freqtrade B3.
     inventory_skew_gamma: float = Field(default=0.0, ge=0.0)
     inventory_skew_horizon_s: float = Field(default=300.0, gt=0.0)
+    # v4 fee discipline: place grid orders as ALO (add-liquidity-only / post-only) so a
+    # grid quote that would cross is rejected rather than paying the taker fee. Default
+    # False preserves legacy Gtc behavior. Stop-loss flattens still cross (market_close).
+    post_only: bool = False
     pair_overrides: dict[str, PairOverrides] = Field(default_factory=dict)
 
 

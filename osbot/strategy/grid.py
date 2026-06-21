@@ -193,6 +193,8 @@ class GridStrategy:
         self.min_notional_usd = cfg.risk.min_notional_usd
         self.inventory_skew_gamma = float(s.inventory_skew_gamma)
         self.inventory_skew_horizon_s = float(s.inventory_skew_horizon_s)
+        # v4: ALO (post-only) grid quotes so entries never pay taker. See cfg.strategy.post_only.
+        self.order_tif = "Alo" if s.post_only else "Gtc"
         if overrides is not None:
             if overrides.grid_levels is not None:
                 self.grid_levels = overrides.grid_levels
@@ -336,6 +338,7 @@ class GridStrategy:
                         price=buy_px,
                         cloid=buy_cloid,
                         level=i,
+                        tif=self.order_tif,
                     )
                 )
                 buy_count += 1
@@ -351,6 +354,7 @@ class GridStrategy:
                         price=sell_px,
                         cloid=sell_cloid,
                         level=i,
+                        tif=self.order_tif,
                     )
                 )
                 sell_count += 1

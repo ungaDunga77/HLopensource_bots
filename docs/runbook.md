@@ -252,3 +252,56 @@ grep "risk precheck" data/hip3-mainnet-*.log
 ```
 
 Shadow DB grows ~5–20 MB/week. No rotation needed for months at micro-size.
+
+## 10. xyz equity-perp profit-gate deployment (`configs/hip3-mainnet-xyz.yaml`)
+
+**Purpose.** This is the one experiment that answers "is the bot profitable?" Majors
+(BTC/ETH/SOL) have gross edge ~0 against sophisticated MMs; at micro scale the maker
+fee is ~1.5 bps (3 bps/RT) with **no rebate** (the −0.003% rebate needs $500M+/14d
+volume — unreachable). So profit requires a market where captured gross edge clears
+~3 bps/RT. The market survey (`docs/market-survey-verdict.md`) found xyz equity perps
+have spreads 5.3–36.5× BTC (NVDA 1.5bps/11.8×, TSLA 0.68bps/5.3×, MSTR 3.5bps/27×) —
+wide enough to potentially clear the fee. testnet xyz has no counterparties, so this
+can ONLY be measured with a small real-money trial. Carries the validated mechanics:
+v2 65bps stop (outside the 50bps grid range), v4 SL-only barrier (`tp_pct=0.1`) +
+post-only (`post_only=true`) quotes.
+
+**The bar to clear:** net ≥ 0 over the trial, i.e. captured gross edge per round-trip
+> ~3 bps/RT. Anything net-negative = the "equal turnover / wider quotes" risk won
+(adverse selection ate the wide spread) → conclude and stop.
+
+**Pre-flight (in addition to §1):**
+- Config: `configs/hip3-mainnet-xyz.yaml` (NVDA/TSLA/MSTR, `top_n: 1`, micro size).
+- Capital: $300–600. Floor is `min_notional*grid_levels/WEL = 10*3/0.25 = $120`.
+- Launch **during US market hours** (Mon–Fri 09:30–16:00 ET) — xyz spreads blow out
+  off-hours; the bot's `is_equity_perp` market-hours guard handles this and flattens
+  before weekends automatically.
+- Funding is persistently **+13–20% APY** on these names: a SHORT inventory lean
+  earns funding, a LONG lean pays it. The near-neutral grid is fine; watch for a
+  persistent long lean.
+
+**Launch:**
+```bash
+source venv/bin/activate; set -a; source .env; set +a
+python -m osbot --config configs/hip3-mainnet-xyz.yaml --dry-run
+python -m osbot --config configs/hip3-mainnet-xyz.yaml --smoke-test   # confirms funded acct
+nohup python -m osbot --config configs/hip3-mainnet-xyz.yaml --run \
+  > data/hip3-mainnet-xyz-$(date +%Y%m%d-%H%M%S).log 2>&1 &
+echo $! > data/hip3-mainnet-xyz.pid
+```
+
+**What to watch (shadow DB `data/hip3-mainnet-xyz-shadow.sqlite`):**
+- **Net bps/RT vs the 3 bps/RT bar** — the headline. Needs ≥150–200 RTs across both
+  calm and trending regimes before trusting (majors taught us small samples mislead —
+  SOL looked +1.8 vs control at 56 RTs but was −6 bps at 210 RTs).
+- **True SL rate** (grep the log for `reason=sl` vs `reason=tp`, not the raw
+  exit_close count). >20% = stop too tight for that name's grid range → widen.
+- **Taker %** — should stay low with post-only on; a spike means ALO rejects forcing
+  re-quotes, or stops firing often.
+- **Gap events** — equity perps gap on earnings/halts/open. The 65bps stop + 12h TTL
+  bound this, but a gap can blow through the stop (market_close fills past 65bps).
+
+**Kill criteria (stop the trial):**
+- Net stays below 0 after ≥200 RTs spanning multiple regimes → thesis failed, conclude.
+- Daily-loss halt (`max_daily_loss_pct: 0.03`) trips twice → structural, stop.
+- A single gap loss > 3× the 65bps stop → reassess sizing / name selection.

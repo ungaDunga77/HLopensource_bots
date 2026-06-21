@@ -107,6 +107,21 @@ def test_grid_plan_submits_ten_orders_when_flat() -> None:
     assert all(s.price < 60_000 for s in buys)
     assert all(s.price > 60_000 for s in sells)
     assert all(s.intent == OrderIntent.OPEN_GRID for s in plan.submits)
+    # Default fee discipline off -> legacy Gtc.
+    assert all(s.tif == "Gtc" for s in plan.submits)
+
+
+def test_grid_post_only_sets_alo_tif() -> None:
+    """v4 fee discipline: post_only=True makes every grid quote ALO (post-only)."""
+    g = GridStrategy(_cfg(post_only=True), sz_decimals=5)
+    m = MarketState()
+    for i in range(20):
+        m.sample(ts=float(i * 60), mid=60_000.0)
+    plan = g.plan(
+        now=20 * 60, mid=60_000.0, market=m, balance_usd=10_000.0, open_grid_cloids=[]
+    )
+    assert plan.submits, "expected grid submits"
+    assert all(s.tif == "Alo" for s in plan.submits)
 
 
 def test_grid_plan_cancels_existing() -> None:
