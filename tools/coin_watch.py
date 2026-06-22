@@ -46,6 +46,24 @@ def main():
     for coin in COINS:
         seg = [r for r in rows if r["coin"] == coin and r["time"] / 1000 >= START]
         _stats(seg, coin)
+    # Funding-aware augmentation (folds HL userFunding into net + shows inventory lean).
+    # Degrades silently if no signing key in env. Critical before the mainnet xyz deploy.
+    try:
+        from funding_pnl import _funding_by_coin, _twa_inventory, _account_address
+        fund = _funding_by_coin(_account_address(), START * 1000)
+        if fund is not None:
+            print("  --- funding-aware ---")
+            for coin in COINS:
+                seg = [r for r in rows if r["coin"] == coin and r["time"] / 1000 >= START]
+                if not seg:
+                    continue
+                net_full = sum(float(r["closedPnl"]) - float(r["fee"]) for r in seg) + fund.get(coin, 0.0)
+                lean = _twa_inventory(seg)
+                tag = "LONG-pays" if lean > 1e-6 else "SHORT-earns" if lean < -1e-6 else "flat"
+                print(f"  {coin}: funding ${fund.get(coin,0.0):+.4f}  NET(incl funding) ${net_full:+.4f}  lean {lean:+.4f} ({tag})")
+    except Exception:
+        pass
+
     # True SL vs TP from the log (post-only era: also surfaces ALO rejects).
     if logfile:
         try:
